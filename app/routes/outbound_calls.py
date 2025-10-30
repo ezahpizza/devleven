@@ -1,17 +1,13 @@
 """Refactored outbound call handlers for Twilio-ElevenLabs integration."""
-import asyncio
-import json
+
 import logging
-from typing import Optional
 from urllib.parse import urlencode
-from fastapi import WebSocket, WebSocketDisconnect, Request
+from fastapi import WebSocket, Request
 from fastapi.responses import Response, JSONResponse
-import websockets
 
 from config import Config
 from models.call_models import OutboundCallRequest
 from services.twilio_service import TwilioService
-from services.elevenlabs_service import ElevenLabsService
 from handlers.websocket_handler import OutboundWebSocketHandler
 
 logger = logging.getLogger(__name__)

@@ -1,48 +1,55 @@
 # DevFusion ElevenLabs-Twilio Voice Agent
 
-A FastAPI-based integration for connecting Twilio phone calls to ElevenLabs Conversational AI agents with automatic lead capture.
+A FastAPI-based integration for connecting Twilio phone calls to ElevenLabs Conversational AI agents with real-time dashboard monitoring and automatic call record management.
 
 ## 🚀 Features
 
-- **Outbound Calls**: Initiate calls with personalized Hindi greetings
-- **First Message Override**: Inject client name into agent's greeting
-- **Lead Management**: Automatic lead capture from conversations
+- **Outbound Calls**: Initiate calls with personalized greetings using ElevenLabs conversational AI
+- **Real-time Dashboard**: WebSocket-powered dashboard with live call monitoring
+- **Call Analytics**: Comprehensive call records with transcripts, sentiment analysis, and conversion tracking
 - **Secure Webhooks**: HMAC signature verification for ElevenLabs webhooks
-- **PostgreSQL Database**: Persistent storage for lead information
+- **MongoDB Database**: Persistent storage for call records and analytics
 - **Modular Architecture**: Clean separation of concerns for maintainability
 
 ## 📁 Project Structure
 
 ```
-fastapi-implementation/
-├── config.py                  # Configuration management
-├── main.py                   # Application entry point
-├── inbound_calls.py          # Inbound call handlers (legacy)
-├── outbound_calls.py         # Outbound call handlers (legacy - kept for reference)
-├── models/                   # Data models
-│   ├── call_models.py        # Request/response models
-│   └── lead_models.py        # Database models
-├── services/                 # Business logic
-│   ├── elevenlabs_service.py # ElevenLabs API interactions
-│   ├── twilio_service.py     # Twilio API interactions
-│   └── lead_service.py       # Lead management
-├── database/                 # Database layer
-│   └── connection.py         # DB connection & session management
-├── routes/                   # API routes
-│   ├── outbound_calls.py     # Outbound call endpoints
-│   └── webhooks.py           # Webhook handlers
-├── handlers/                 # WebSocket handlers
-│   └── websocket_handler.py  # Outbound call WebSocket logic
-└── utils/                    # Utilities
-    └── webhook_security.py   # HMAC verification
+eleventwilio/
+├── app/
+│   ├── config.py                      # Configuration management
+│   ├── main.py                        # Application entry point
+│   ├── setup_db.py                    # Database initialization script
+│   ├── models/                        # Data models
+│   │   ├── call_models.py             # Request models for API
+│   │   └── call_record_models.py      # Call record and webhook models
+│   ├── services/                      # Business logic
+│   │   ├── elevenlabs_service.py      # ElevenLabs API interactions
+│   │   ├── twilio_service.py          # Twilio API interactions
+│   │   └── call_record_service.py     # Call record CRUD operations
+│   ├── db/                            # Database layer
+│   │   ├── __init__.py                # DB lifecycle management
+│   │   └── mongo.py                   # MongoDB connection & collections
+│   ├── routes/                        # API routes
+│   │   ├── dashboard.py               # Dashboard API & WebSocket endpoints
+│   │   └── webhooks.py                # ElevenLabs webhook handlers
+│   ├── handlers/                      # WebSocket handlers
+│   │   ├── dashboard_ws.py            # Dashboard WebSocket manager
+│   │   └── websocket_handler.py       # Twilio-ElevenLabs media stream handler
+│   └── utils/                         # Utilities
+│       └── webhook_security.py        # HMAC verification
+├── docs/
+│   ├── README.md                      # This file
+│   ├── QUICKSTART.md                  # Quick setup guide
+│   └── AGENT_SYSTEM_PROMPT.md         # ElevenLabs agent configuration
+└── pyproject.toml                     # Project dependencies
 ```
 
 ## 🛠️ Setup
 
 ### Prerequisites
 
-- Python 3.8+
-- PostgreSQL database
+- Python 3.13+
+- MongoDB (local or Atlas)
 - Twilio account with phone number
 - ElevenLabs account with conversational AI agent
 - ngrok or similar tunneling service
@@ -51,39 +58,55 @@ fastapi-implementation/
 
 1. **Clone and navigate to the project:**
    ```bash
-   cd fastapi-implementation
+   cd eleventwilio
    ```
 
-2. **Install dependencies:**
+2. **Install dependencies using uv (recommended) or pip:**
    ```bash
-   pip install -r requirements.txt
+   uv sync
+   # or
+   pip install -e .
    ```
 
 3. **Configure environment variables:**
-   ```bash
-   cp .env.example .env
-   ```
    
-   Edit `.env` and add your credentials:
-   - `ELEVENLABS_API_KEY`: Your ElevenLabs API key
-   - `ELEVENLABS_AGENT_ID`: Your agent ID
-   - `ELEVENLABS_WEBHOOK_SECRET`: Secret from ElevenLabs console
-   - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`: From Twilio
-   - `DATABASE_URL`: PostgreSQL connection string
-   - `NGROK_URL`: Your public URL (from ngrok)
+   Create `.env` file in the `app/` directory with:
+   ```env
+   # ElevenLabs Configuration
+   ELEVENLABS_API_KEY=your_api_key
+   ELEVENLABS_AGENT_ID=your_agent_id
+   ELEVENLABS_WEBHOOK_SECRET=your_webhook_secret
+   
+   # Twilio Configuration
+   TWILIO_ACCOUNT_SID=your_account_sid
+   TWILIO_AUTH_TOKEN=your_auth_token
+   TWILIO_PHONE_NUMBER=+1234567890
+   
+   # Database
+   MONGO_URI=mongodb://localhost:27017
+   
+   # Server
+   PORT=8000
+   NGROK_URL=https://your-domain.ngrok.io
+   ENV=dev
+   ```
 
-4. **Set up PostgreSQL database:**
+4. **Set up MongoDB:**
    
-   Create a database:
-   ```sql
-   CREATE DATABASE devfusion_calls;
+   The database and collections will be created automatically on first run.
+   
+   Alternatively, run the setup script:
+   ```bash
+   cd app
+   python setup_db.py
    ```
-   
-   The tables will be created automatically on first run.
 
 5. **Start the server:**
    ```bash
+   cd app
    python main.py
+   # or
+   uvicorn main:app --reload --port 8000
    ```
 
 6. **Expose with ngrok:**
@@ -97,13 +120,13 @@ fastapi-implementation/
 
 ### API Endpoint
 
-**POST** `/outbound-call`
+**POST** `/api/initiate_call`
 
 **Request Body:**
 ```json
 {
-  "number": "+917978268815",
-  "client_name": "Prateek"
+  "number": "+1234567890",
+  "client_name": "John Smith"
 }
 ```
 
@@ -113,87 +136,120 @@ fastapi-implementation/
   "success": true,
   "message": "Call initiated",
   "callSid": "CA1234567890abcdef",
-  "clientName": "Prateek",
-  "phoneNumber": "+917978268815"
+  "clientName": "John Smith",
+  "phoneNumber": "+1234567890"
 }
 ```
 
-### Personalized Greeting
+### How It Works
 
-The agent will greet the caller with:
-
-**"नमस्ते {client_name}! मैं वनिका बोल रही हूँ Dev Fusion एजेंसी से। कैसे हैं आप? क्या आपने हमारी किसी प्रॉपर्टी के बारे में जानकारी ली थी?"**
-
-Example for `client_name: "Prateek"`:
-**"नमस्ते Prateek! मैं वनिका बोल रही हूँ Dev Fusion एजेंसी से। कैसे हैं आप? क्या आपने हमारी किसी प्रॉपर्टी के बारे में जानकारी ली थी?"**
+1. Client name and phone number are passed to `/api/initiate_call`
+2. System creates a Twilio call with TwiML URL containing these parameters
+3. TwiML endpoint establishes WebSocket connection to ElevenLabs
+4. ElevenLabs agent receives client context and personalizes the conversation
+5. Real-time updates are broadcast to the dashboard via WebSocket
 
 ## 🪝 Setting Up ElevenLabs Webhook
 
 1. Go to ElevenLabs Console → Webhooks
 2. Create a new webhook with:
-   - **Name**: DevFusion Lead Capture
-   - **URL**: `https://your-ngrok-url.ngrok.io/elevenlabs-webhook`
+   - **Name**: DevFusion Call Complete
+   - **URL**: `https://your-ngrok-url.ngrok.io/webhook/call_complete`
    - **Auth Method**: HMAC
-   - **Events**: Select `conversation.end`
+   - **Events**: Select `post_call_transcription`
 
 3. Copy the generated webhook secret and add it to your `.env`:
-   ```
+   ```env
    ELEVENLABS_WEBHOOK_SECRET=your_secret_here
    ```
 
-4. Associate the webhook with your agent
+4. Associate the webhook with your conversational AI agent
 
-## 💾 Lead Data Format
+## 💾 Call Records & Analytics
 
-Leads are automatically saved to the database when a conversation ends:
+Call records are automatically saved when a conversation ends:
 
-```
-CALLER_NAME: Prateek
-CALLER_NUMBER: +917978268815
-CALL_START_TIME: 2025-09-29 22:45:57 Monday
-ENQUIRED_PROPERTY: [Extracted from conversation]
-REQUIREMENTS: [Extracted from conversation]
-SITE_VISIT_DATE: [Extracted from conversation]
-FOLLOW_UP_DATE: [Extracted from conversation]
-SPECIAL_NOTES: [Summary and key points]
-```
-
-### Database Schema
+### Call Record Schema
 
 ```python
-class Lead(SQLModel, table=True):
-    id: int (primary key)
-    caller_name: str
-    caller_number: str (indexed)
-    call_start_time: datetime
-    enquired_property: str (optional)
-    requirements: str (optional)
-    site_visit_date: str (optional)
-    follow_up_date: str (optional)
-    special_notes: str (optional)
-    conversation_id: str (optional)
-    call_sid: str (optional)
-    created_at: datetime
-    updated_at: datetime
+{
+    "call_id": str,              # Unique conversation ID
+    "client_name": str,          # Client name from initiation
+    "transcript": str,           # Full conversation transcript
+    "insights": {
+        "sentiment": str,        # positive/negative/neutral
+        "topics": [str],         # Key topics discussed
+        "duration_sec": int      # Call duration in seconds
+    },
+    "conversion_status": bool,   # Whether call was successful
+    "timestamp": datetime        # Call completion time
+}
+```
+
+### Dashboard API Endpoints
+
+- **GET** `/api/calls?page=1&page_size=20` - Paginated call records
+- **GET** `/api/call/{call_id}` - Single call record details
+- **GET** `/api/calls/summary` - Summary statistics (total calls, conversions, conversion rate)
+- **WebSocket** `/ws/dashboard` - Real-time updates for dashboard
+
+### WebSocket Events
+
+The dashboard WebSocket broadcasts these events:
+
+```javascript
+// Call initiated
+{
+  "type": "call_in_progress",
+  "payload": {
+    "call_sid": "CA...",
+    "client_name": "John Smith",
+    "phone_number": "+1234567890",
+    "status": "queued"
+  }
+}
+
+// Call completed and saved
+{
+  "type": "call_record_created",
+  "payload": {
+    "call_id": "conv_...",
+    "client_name": "John Smith",
+    "timestamp": "2025-10-30T12:34:56Z"
+  }
+}
 ```
 
 ## 🔒 Security
 
 - **HMAC Signature Verification**: All webhooks from ElevenLabs are verified using HMAC-SHA256
-- **Environment Variables**: Sensitive credentials stored securely
-- **Database**: Connection pooling with secure PostgreSQL
+- **Environment Variables**: Sensitive credentials stored securely in `.env`
+- **MongoDB**: Secure connection with authentication support
 
 ## 🧪 Testing
 
 ### Test Outbound Call
 
 ```bash
-curl -X POST https://your-ngrok-url.ngrok.io/outbound-call \
+curl -X POST https://your-ngrok-url.ngrok.io/api/initiate_call \
   -H "Content-Type: application/json" \
   -d '{
-    "number": "+917978268815",
-    "client_name": "Prateek"
+    "number": "+1234567890",
+    "client_name": "John Smith"
   }'
+```
+
+### Get Call Records
+
+```bash
+# Get paginated calls
+curl https://your-ngrok-url.ngrok.io/api/calls?page=1&page_size=10
+
+# Get specific call
+curl https://your-ngrok-url.ngrok.io/api/call/conv_abc123
+
+# Get summary statistics
+curl https://your-ngrok-url.ngrok.io/api/calls/summary
 ```
 
 ### Health Check
@@ -205,49 +261,118 @@ curl https://your-ngrok-url.ngrok.io/
 ## 📊 Monitoring
 
 Check logs for:
-- Call initiation
-- WebSocket connections
-- Lead capture
-- Webhook verification
+- Call initiation and status
+- WebSocket connection lifecycle
+- Call record creation
+- Webhook signature verification
+- ElevenLabs API interactions
 
-```bash
-# Watch logs in real-time
-python main.py
+Logs are formatted with timestamps and module names:
+```
+[2025-10-30 17:01:47] INFO - handlers.websocket_handler - [Handler] Client: John Smith, Phone: +1234567890
+[2025-10-30 17:01:48] INFO - handlers.websocket_handler - [ElevenLabs] Conversation ID: conv_abc123
+[2025-10-30 17:02:15] INFO - services.call_record_service - [MongoDB] Call record saved: conv_abc123
 ```
 
 ## 🔧 Troubleshooting
 
 ### Database Connection Issues
-- Verify `DATABASE_URL` is correct
-- Ensure PostgreSQL is running
-- Check firewall rules
+- Verify `MONGO_URI` is correct
+- Ensure MongoDB is running (`mongod --version`)
+- Check network connectivity for MongoDB Atlas
+- Review connection logs in console
 
 ### ElevenLabs Connection Issues
-- Verify API key and agent ID
-- Check agent is active in console
-- Ensure first message override is supported
+- Verify `ELEVENLABS_API_KEY` and `ELEVENLABS_AGENT_ID` are correct
+- Check agent is active in ElevenLabs console
+- Ensure signed URL generation is working
+- Review WebSocket connection logs
+
+### Twilio Issues
+- Verify all Twilio credentials are correct
+- Ensure phone number is in E.164 format (+1234567890)
+- Check Twilio console for call logs and errors
+- Verify ngrok URL is accessible from internet
 
 ### Webhook Not Receiving Data
-- Verify ngrok is running
-- Check webhook URL in ElevenLabs console
-- Verify webhook secret matches
+- Verify ngrok is running and URL is up to date
+- Check webhook URL in ElevenLabs console matches your endpoint
+- Verify webhook secret matches between `.env` and ElevenLabs
 - Check HMAC signature verification logs
+- Ensure `post_call_transcription` event is selected
+
+### Client Name Shows as [CALLER_NAME]
+- This was a known issue - client name needs to be passed via conversation initiation metadata
+- Ensure TwiML endpoint properly passes client_name in WebSocket URL
+- See AGENT_SYSTEM_PROMPT.md for proper configuration
 
 ## 📝 API Documentation
 
 Once running, access interactive API docs at:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+- **Swagger UI**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
 
-## 🔄 Migration from Old Version
+## 🏗️ Architecture
 
-The old files (`outbound_calls.py`, `elevenlabs_client.py`) are kept for reference but are no longer used. The new modular structure provides:
+### Call Flow
 
-1. **Better organization**: Separate concerns into models, services, routes
-2. **Easier testing**: Each module can be tested independently
-3. **Cleaner code**: Removed unused webhook logic and parameters
-4. **Database integration**: Automatic lead capture and storage
-5. **Enhanced security**: HMAC verification for webhooks
+1. **Initiation** (`/api/initiate_call`)
+   - Validates request (phone number, client name)
+   - Constructs TwiML URL with parameters
+   - Calls Twilio API to initiate call
+   - Broadcasts "call_in_progress" to dashboard
+
+2. **TwiML Response** (needs to be implemented)
+   - Receives call from Twilio
+   - Returns TwiML with `<Connect><Stream>` to WebSocket endpoint
+   - Passes client_name and phone_number as query params
+
+3. **WebSocket Handler** (`OutboundWebSocketHandler`)
+   - Accepts Twilio media stream
+   - Gets ElevenLabs signed URL
+   - Establishes bidirectional audio streaming
+   - Handles conversation lifecycle
+
+4. **Webhook Processing** (`/webhook/call_complete`)
+   - Receives ElevenLabs post_call_transcription event
+   - Verifies HMAC signature
+   - Parses transcript and analysis data
+   - Saves call record to MongoDB
+   - Broadcasts "call_record_created" to dashboard
+
+### Data Flow
+
+```
+Dashboard → POST /api/initiate_call → Twilio API → Phone Call
+                                                         ↓
+                                                    TwiML URL
+                                                         ↓
+                                                  WebSocket Handler
+                                                         ↓
+                                               ElevenLabs ConvAI
+                                                         ↓
+                                               Conversation Happens
+                                                         ↓
+                                            POST /webhook/call_complete
+                                                         ↓
+                                                   MongoDB Storage
+                                                         ↓
+                                              Dashboard WebSocket Update
+```
+
+## 🔄 Migration Notes
+
+This is the current implementation using:
+- **MongoDB** instead of PostgreSQL
+- **Call Records** instead of Lead models
+- **Dashboard WebSocket** for real-time updates
+- **ElevenLabs post_call_transcription** webhook format
+- **Conversation initiation metadata** for client context
+
+## 📚 Additional Documentation
+
+- **QUICKSTART.md** - Step-by-step setup guide
+- **AGENT_SYSTEM_PROMPT.md** - ElevenLabs agent configuration and personality
 
 ## 📄 License
 
@@ -256,3 +381,8 @@ Proprietary - DevFusion Agency
 ## 👥 Support
 
 For issues or questions, contact DevFusion technical team.
+
+---
+
+**Version**: 2.0.0  
+**Last Updated**: October 30, 2025

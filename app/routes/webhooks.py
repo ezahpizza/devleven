@@ -1,4 +1,5 @@
 """Webhook handlers for voice agent call completion."""
+import json
 import logging
 from datetime import datetime
 
@@ -57,7 +58,6 @@ def register_webhook_routes(app):
             
             # Parse and validate payload
             try:
-                import json
                 raw_data = json.loads(raw_body)
                 
                 # Parse as ElevenLabs webhook format

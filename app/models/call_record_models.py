@@ -1,6 +1,6 @@
 """Pydantic models for call record payloads and responses."""
 from datetime import datetime
-from typing import List, Optional, Any, Dict
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
