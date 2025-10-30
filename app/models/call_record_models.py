@@ -52,7 +52,7 @@ class ElevenLabsConversationData(BaseModel):
     metadata: ElevenLabsMetadata
     analysis: Optional[ElevenLabsAnalysis] = None
     
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="allow")
 
 
 class ElevenLabsWebhookPayload(BaseModel):

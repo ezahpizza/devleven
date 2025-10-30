@@ -71,6 +71,14 @@ def register_dashboard_routes(app):
                 twiml_url=twiml_url_with_params,
             )
 
+            # Store client name for later retrieval in webhook
+            call_sid = call_info.get("call_sid")
+            await CallRecordService.store_call_metadata(
+                call_sid=call_sid,
+                client_name=request_data.client_name,
+                phone_number=request_data.number
+            )
+
             payload = {
                 "call_sid": call_info.get("call_sid"),
                 "client_name": request_data.client_name,

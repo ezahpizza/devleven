@@ -71,16 +71,24 @@ def register_webhook_routes(app):
                         role_label = turn.role.capitalize()
                         transcript_text += f"{role_label}: {turn.message}\n"
                 
-                # Extract client name from dynamic variables if available
-                client_name = "Unknown"
-                if hasattr(elevenlabs_payload.data, 'conversation_initiation_client_data'):
-                    dynamic_vars = getattr(
-                        elevenlabs_payload.data.conversation_initiation_client_data,
-                        'dynamic_variables',
-                        {}
-                    )
-                    # You might want to set this differently based on your needs
-                    client_name = dynamic_vars.get('client_name', 'Unknown')
+                # Extract client name from stored metadata (set during call initiation)
+                conversation_id = elevenlabs_payload.data.conversation_id
+                metadata = await CallRecordService.get_call_metadata_by_conversation(conversation_id)
+                
+                client_name = metadata.get("client_name", "Unknown")
+                if client_name != "Unknown":
+                    logger.info(f"[Webhook] Using stored client name: {client_name}")
+                else:
+                    logger.warning(f"[Webhook] No stored metadata found for conversation_id={conversation_id}")
+                    
+                    # Fallback: Try to get from webhook payload (legacy support)
+                    if 'conversation_initiation_client_data' in raw_data.get('data', {}):
+                        init_data = raw_data['data']['conversation_initiation_client_data']
+                        if isinstance(init_data, dict):
+                            dynamic_vars = init_data.get('dynamic_variables', {})
+                            if isinstance(dynamic_vars, dict):
+                                client_name = dynamic_vars.get('client_name', 'Unknown')
+                                logger.info(f"[Webhook] Fallback: Extracted client name from payload: {client_name}")
                 
                 # Determine sentiment based on call success
                 sentiment = "positive"
@@ -125,14 +133,13 @@ def register_webhook_routes(app):
             record = await CallRecordService.upsert_call_record(payload)
             response_model = CallRecordResponse(**record)
             
-            # Broadcast to dashboard
+            # Clean up stored metadata
+            await CallRecordService.cleanup_call_metadata(conversation_id)
+            
+            # Broadcast full record so the dashboard stays in sync
             await dashboard_manager.broadcast(
-                "call_record_created",
-                {
-                    "call_id": response_model.call_id,
-                    "client_name": response_model.client_name,
-                    "timestamp": response_model.timestamp.isoformat(),
-                },
+                "call_completed",
+                response_model.model_dump(mode="json"),
             )
             
             return {"status": "success", "call_id": response_model.call_id}

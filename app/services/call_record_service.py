@@ -32,6 +32,64 @@ def _serialize_call_record(document: Dict) -> Dict:
 
 class CallRecordService:
     """Mongo-backed operations for call records."""
+    
+    # In-memory store for call metadata (call_sid -> client info)
+    _call_metadata: Dict[str, Dict[str, str]] = {}
+    
+    # In-memory store for linking conversation_id to call_sid
+    _conversation_to_call: Dict[str, str] = {}
+
+    @staticmethod
+    async def store_call_metadata(call_sid: str, client_name: str, phone_number: str):
+        """Store client name and phone number for a call."""
+        CallRecordService._call_metadata[call_sid] = {
+            "client_name": client_name,
+            "phone_number": phone_number
+        }
+        logger.info(f"[CallRecord] Stored metadata for call_sid={call_sid}: {client_name}")
+
+    @staticmethod
+    async def link_conversation_to_call(conversation_id: str, call_sid: str):
+        """Link an ElevenLabs conversation_id to a Twilio call_sid."""
+        CallRecordService._conversation_to_call[conversation_id] = call_sid
+        logger.info(f"[CallRecord] Linked conversation_id={conversation_id} to call_sid={call_sid}")
+
+    @staticmethod
+    async def get_call_metadata_by_conversation(conversation_id: str) -> Dict[str, str]:
+        """Retrieve metadata using conversation_id."""
+        call_sid = CallRecordService._conversation_to_call.get(conversation_id)
+        if not call_sid:
+            logger.warning(f"[CallRecord] No call_sid found for conversation_id={conversation_id}")
+            return {}
+        
+        metadata = CallRecordService._call_metadata.get(call_sid, {})
+        if metadata:
+            logger.info(f"[CallRecord] Retrieved metadata for conversation_id={conversation_id}: {metadata}")
+        return metadata
+
+    @staticmethod
+    async def cleanup_call_metadata(conversation_id: str):
+        """Clean up metadata after webhook processing."""
+        call_sid = CallRecordService._conversation_to_call.get(conversation_id)
+        if call_sid:
+            CallRecordService._call_metadata.pop(call_sid, None)
+            CallRecordService._conversation_to_call.pop(conversation_id, None)
+            logger.info(f"[CallRecord] Cleaned up metadata for conversation_id={conversation_id}")
+
+    @staticmethod
+    async def get_call_metadata(call_sid: str) -> Dict[str, str]:
+        """Retrieve stored metadata for a call."""
+        metadata = CallRecordService._call_metadata.get(call_sid, {})
+        if metadata:
+            logger.info(f"[CallRecord] Retrieved metadata for call_sid={call_sid}")
+        return metadata
+
+    @staticmethod
+    async def remove_call_metadata(call_sid: str):
+        """Remove metadata after it's been used."""
+        if call_sid in CallRecordService._call_metadata:
+            del CallRecordService._call_metadata[call_sid]
+            logger.info(f"[CallRecord] Removed metadata for call_sid={call_sid}")
 
     @staticmethod
     async def upsert_call_record(payload: CallCompletePayload) -> Dict:

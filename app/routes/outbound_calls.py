@@ -98,24 +98,24 @@ def register_outbound_routes(app):
         client_name = query_params.get("client_name", "")
         phone_number = query_params.get("phone_number", "")
         
+        logger.info(f"[TwiML] Received query params: client_name={client_name}, phone_number={phone_number}")
+        
         # Build base URL
         base_url = Config.NGROK_URL or f"https://{request.headers.get('host', 'localhost')}"
         ws_url = base_url.replace("https://", "").replace("http://", "")
+        ws_stream_url = f"wss://{ws_url}/outbound-media-stream"
         
-        # Build WebSocket URL with query parameters and XML-escape ampersands
-        ws_params = urlencode({
-            "client_name": client_name,
-            "phone_number": phone_number
-        })
-        # Replace & with &amp; for XML
-        ws_params_escaped = ws_params.replace("&", "&amp;")
-        ws_stream_url = f"wss://{ws_url}/outbound-media-stream?{ws_params_escaped}"
+        logger.info(f"[TwiML] Generated WebSocket URL: {ws_stream_url}")
         
-        # Create TwiML with Stream
+        # Use Twilio Stream Parameters to pass metadata
+        # These will be available in the 'start' event's customParameters
         twiml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
-        <Stream url="{ws_stream_url}" />
+        <Stream url="{ws_stream_url}">
+            <Parameter name="client_name" value="{client_name}" />
+            <Parameter name="phone_number" value="{phone_number}" />
+        </Stream>
     </Connect>
 </Response>"""
         
@@ -130,10 +130,7 @@ def register_outbound_routes(app):
         Args:
             websocket: WebSocket connection from Twilio
         """
-        # Get query parameters from the WebSocket connection
-        query_params = dict(websocket.query_params)
-        client_name = query_params.get("client_name", "")
-        phone_number = query_params.get("phone_number", "")
-        
-        handler = OutboundWebSocketHandler(websocket, client_name, phone_number)
+        # Parameters will be extracted from Twilio's 'start' event
+        # Pass empty strings initially, handler will extract them from the start event
+        handler = OutboundWebSocketHandler(websocket, "", "")
         await handler.handle()

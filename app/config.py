@@ -26,6 +26,13 @@ class Config:
     # Server Configuration
     PORT = int(os.getenv("PORT", "8000"))
     NGROK_URL = os.getenv("NGROK_URL", "")
+
+    # CORS Configuration (origins only)
+    _cors_origins = os.getenv("CORS_ALLOW_ORIGINS", "")
+    if _cors_origins.strip():
+        CORS_ALLOW_ORIGINS = [origin.strip() for origin in _cors_origins.split(",") if origin.strip()]
+    else:
+        CORS_ALLOW_ORIGINS = ["*"]
     
     @classmethod
     def validate_elevenlabs_config(cls):

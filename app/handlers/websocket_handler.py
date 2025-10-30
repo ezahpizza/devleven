@@ -7,6 +7,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 import websockets
 
 from services.elevenlabs_service import ElevenLabsService
+from services.call_record_service import CallRecordService
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,8 @@ class OutboundWebSocketHandler:
                 ),
                 timeout=10.0
             )
+            # Don't initialize conversation context yet - wait for Twilio start event
+            # which contains the custom parameters with client name
             
         except asyncio.TimeoutError:
             logger.error("[ElevenLabs] Connection timeout")
@@ -73,6 +76,59 @@ class OutboundWebSocketHandler:
             logger.error(f"[ElevenLabs] Connection failed: {e}")
             raise
     
+    async def _initialize_conversation_context(self):
+        """Send conversation initiation payload with first message override."""
+        if not self.elevenlabs_ws:
+            return
+
+        init_payload = {
+            "type": "conversation_initiation_client_data",
+            "custom_llm_extra_body": {},
+        }
+
+        conversation_override = {}
+        first_message = self._build_first_message()
+        if first_message:
+            conversation_override["agent"] = {"first_message": first_message}
+
+        if conversation_override:
+            init_payload["conversation_config_override"] = conversation_override
+        else:
+            init_payload["conversation_config_override"] = {}
+
+        dynamic_variables = self._build_dynamic_variables()
+        if dynamic_variables:
+            init_payload["dynamic_variables"] = dynamic_variables
+
+        try:
+            await self.elevenlabs_ws.send(json.dumps(init_payload))
+            logger.info(
+                "[ElevenLabs] Sent first message override for %s",
+                dynamic_variables.get("client_name", "unknown") if dynamic_variables else "unknown",
+            )
+        except Exception as exc:
+            logger.error("[ElevenLabs] Failed to send conversation initiation payload: %s", exc)
+
+    def _build_first_message(self) -> str:
+        """Create the agent's first message with the injected client name."""
+        name = (self.client_name or "").strip()
+        if not name:
+            name = "there"
+
+        return (
+            f"Hey {name}! This is Alex from Dev Fusion. How are you doing today? "
+            "I understand you're interested in exploring some website development work with us - is that right?"
+        )
+
+    def _build_dynamic_variables(self) -> dict:
+        """Assemble dynamic variables for the ElevenLabs conversation context."""
+        dynamic_vars = {}
+        if self.client_name:
+            dynamic_vars["client_name"] = self.client_name
+        if self.phone_number:
+            dynamic_vars["phone_number"] = self.phone_number
+        return dynamic_vars
+
     async def _handle_connection(self):
         """Handle the WebSocket connection lifecycle."""
         # Start bidirectional communication
@@ -139,6 +195,17 @@ class OutboundWebSocketHandler:
                 if event == "start":
                     self.stream_sid = data["start"]["streamSid"]
                     self.call_sid = data["start"]["callSid"]
+                    
+                    # Extract custom parameters from Twilio Stream
+                    custom_params = data["start"].get("customParameters", {})
+                    if custom_params:
+                        self.client_name = custom_params.get("client_name", "")
+                        self.phone_number = custom_params.get("phone_number", "")
+                        logger.info(f"[Handler] Extracted from Stream params - Client: {self.client_name}, Phone: {self.phone_number}")
+                        
+                        # Now that we have all the info, re-initialize ElevenLabs with correct context
+                        if self.elevenlabs_ws:
+                            await self._initialize_conversation_context()
                 
                 elif event == "media":
                     # Only forward audio if ElevenLabs is still connected
@@ -189,6 +256,13 @@ class OutboundWebSocketHandler:
             if metadata.get("conversation_id"):
                 self.conversation_id = metadata["conversation_id"]
                 logger.info(f"[ElevenLabs] Conversation ID: {self.conversation_id}")
+                
+                # Link conversation_id to call_sid for webhook lookup
+                if self.call_sid:
+                    await CallRecordService.link_conversation_to_call(
+                        conversation_id=self.conversation_id,
+                        call_sid=self.call_sid
+                    )
         
         elif msg_type == "audio":
             # Handle audio chunks
