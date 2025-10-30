@@ -1,6 +1,6 @@
 """Pydantic models for call record payloads and responses."""
 from datetime import datetime
-from typing import List
+from typing import List, Optional, Any, Dict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,6 +12,55 @@ class InsightModel(BaseModel):
     topics: List[str] = Field(default_factory=list)
     duration_sec: int = Field(..., ge=0)
 
+    model_config = ConfigDict(extra="ignore")
+
+
+# ElevenLabs webhook models
+class ElevenLabsTranscriptTurn(BaseModel):
+    """A single turn in the conversation transcript."""
+    role: str
+    message: Optional[str] = None
+    time_in_call_secs: int = 0
+    
+    model_config = ConfigDict(extra="ignore")
+
+
+class ElevenLabsAnalysis(BaseModel):
+    """Analysis data from ElevenLabs."""
+    call_successful: Optional[str] = None
+    transcript_summary: Optional[str] = None
+    call_summary_title: Optional[str] = None
+    
+    model_config = ConfigDict(extra="ignore")
+
+
+class ElevenLabsMetadata(BaseModel):
+    """Metadata about the call."""
+    call_duration_secs: int = 0
+    cost: Optional[int] = None
+    termination_reason: Optional[str] = None
+    
+    model_config = ConfigDict(extra="ignore")
+
+
+class ElevenLabsConversationData(BaseModel):
+    """The main data payload from ElevenLabs post_call_transcription webhook."""
+    agent_id: str
+    conversation_id: str
+    status: str
+    transcript: List[ElevenLabsTranscriptTurn]
+    metadata: ElevenLabsMetadata
+    analysis: Optional[ElevenLabsAnalysis] = None
+    
+    model_config = ConfigDict(extra="ignore")
+
+
+class ElevenLabsWebhookPayload(BaseModel):
+    """Complete ElevenLabs webhook payload structure."""
+    type: str
+    event_timestamp: int
+    data: ElevenLabsConversationData
+    
     model_config = ConfigDict(extra="ignore")
 
 

@@ -27,15 +27,12 @@ class ElevenLabsService:
             "xi-api-key": Config.ELEVENLABS_API_KEY
         }
         
-        logger.info(f"[ElevenLabs] Requesting signed URL for agent: {Config.ELEVENLABS_AGENT_ID}")
-        
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url, headers=headers)
             
             if response.status_code != 200:
-                logger.error(f"[ElevenLabs] Failed to get signed URL: {response.status_code} - {response.text}")
+                logger.error(f"[ElevenLabs] Failed to get signed URL: {response.status_code}")
                 raise Exception(f"Failed to get signed URL: {response.status_code} - {response.text}")
             
             data = response.json()
-            logger.info(f"[ElevenLabs] Successfully obtained signed URL")
             return data["signed_url"]

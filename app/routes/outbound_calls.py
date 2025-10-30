@@ -67,8 +67,6 @@ def register_outbound_routes(app):
                 twiml_url=twiml_url_with_params
             )
             
-            logger.info(f"[Outbound] Call initiated to {request_data.number} for {request_data.client_name}")
-            
             return JSONResponse(content={
                 "success": True,
                 "message": "Call initiated",

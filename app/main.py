@@ -15,21 +15,26 @@ from routes import register_outbound_routes, register_webhook_routes, register_d
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,  # Changed to DEBUG for troubleshooting
     format='[%(asctime)s] %(levelname)s - %(name)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
 
+# Silence noisy third-party loggers
+logging.getLogger("pymongo").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("websockets").setLevel(logging.INFO)
+logging.getLogger("handlers.websocket_handler").setLevel(logging.INFO)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize application on startup."""
-    logger.info("[Server] Starting application...")
-    
     try:
         await init_mongo()
-        logger.info("[Server] MongoDB initialized")
     except Exception as e:
         logger.error(f"[Server] MongoDB initialization failed: {e}")
     
@@ -55,6 +60,16 @@ async def root():
         "message": "Server is running",
         "version": "2.0.0",
         "service": "DevFusion ElevenLabs-Twilio Integration"
+    })
+
+
+@app.get("/debug/config")
+async def debug_config():
+    """Debug endpoint to check configuration (REMOVE IN PRODUCTION)."""
+    return JSONResponse(content={
+        "webhook_secret_configured": bool(Config.ELEVENLABS_WEBHOOK_SECRET),
+        "webhook_secret_length": len(Config.ELEVENLABS_WEBHOOK_SECRET) if Config.ELEVENLABS_WEBHOOK_SECRET else 0,
+        "webhook_secret_preview": Config.ELEVENLABS_WEBHOOK_SECRET[:8] + "..." if Config.ELEVENLABS_WEBHOOK_SECRET else "Not set"
     })
 
 

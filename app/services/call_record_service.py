@@ -40,7 +40,7 @@ class CallRecordService:
         record = payload.model_dump()
         record["timestamp"] = _normalize_timestamp(record["timestamp"])
         try:
-            await collection.update_one(
+            result = await collection.update_one(
                 {"call_id": record["call_id"]},
                 {"$set": record},
                 upsert=True,
@@ -50,10 +50,9 @@ class CallRecordService:
                 {"_id": 0},
             )
             serialized = _serialize_call_record(document or record)
-            logger.info(f"[Calls] Upserted call_id={record['call_id']}")
             return serialized
         except PyMongoError as exc:
-            logger.error(f"[Calls] Upsert failed: {exc}")
+            logger.error(f"[MongoDB] Upsert failed for call_id={record['call_id']}: {exc}")
             raise
 
     @staticmethod

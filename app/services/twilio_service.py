@@ -39,8 +39,6 @@ class TwilioService:
                 url=twiml_url,
             )
             
-            logger.info(f"[Twilio] Call initiated: {call.sid} to {to_number}")
-            
             return {
                 "call_sid": call.sid,
                 "to": to_number,
@@ -70,8 +68,6 @@ class TwilioService:
                 self.client.calls(call_sid).update,
                 status="completed",
             )
-            
-            logger.info(f"[Twilio] Call ended: {call_sid}")
             
             return {
                 "call_sid": call.sid,

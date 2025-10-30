@@ -5,6 +5,8 @@ from .call_record_models import (
     CallRecordResponse,
     PaginatedCallsResponse,
     CallSummaryResponse,
+    ElevenLabsWebhookPayload,
+    InsightModel,
 )
 
 __all__ = [
@@ -13,4 +15,6 @@ __all__ = [
     "CallRecordResponse",
     "PaginatedCallsResponse",
     "CallSummaryResponse",
+    "ElevenLabsWebhookPayload",
+    "InsightModel",
 ]

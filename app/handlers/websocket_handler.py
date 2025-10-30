@@ -55,7 +55,6 @@ class OutboundWebSocketHandler:
         """Set up ElevenLabs connection using authenticated signed URL."""
         try:
             signed_url = await ElevenLabsService.get_signed_url()
-            logger.info(f"[ElevenLabs] Connecting...")
             
             self.elevenlabs_ws = await asyncio.wait_for(
                 websockets.connect(
@@ -66,7 +65,6 @@ class OutboundWebSocketHandler:
                 ),
                 timeout=10.0
             )
-            logger.info("[ElevenLabs] Connected to Conversational AI")
             
         except asyncio.TimeoutError:
             logger.error("[ElevenLabs] Connection timeout")
@@ -91,8 +89,6 @@ class OutboundWebSocketHandler:
                     data = json.loads(message)
                     msg_type = data.get("type")
                     
-                    logger.debug(f"[ElevenLabs] Received message type: {msg_type}")
-                    
                     # Handle ping/pong
                     if msg_type == "ping":
                         event_id = data.get("ping_event", {}).get("event_id")
@@ -108,12 +104,10 @@ class OutboundWebSocketHandler:
                 
                 except json.JSONDecodeError as e:
                     logger.error(f"[ElevenLabs] JSON decode error: {e}")
-                    logger.error(f"[ElevenLabs] Raw message: {message[:200]}")
                 except Exception as e:
                     logger.error(f"[ElevenLabs] Error processing message: {e}")
         
         except websockets.exceptions.ConnectionClosed as e:
-            logger.info(f"[ElevenLabs] Connection closed - Code: {e.code}, Reason: {e.reason}")
             self.elevenlabs_closed = True  # Mark ElevenLabs as closed
             
             # Give Twilio time to flush audio
@@ -123,8 +117,8 @@ class OutboundWebSocketHandler:
                 if self.websocket.client_state.name == "CONNECTED":
                     await self.websocket.send_text(json.dumps({"event": "stop"}))
                     await self.websocket.close()
-            except Exception as e:
-                logger.debug(f"[Twilio] Could not send stop event: {e}")
+            except Exception:
+                pass
         
         except Exception as e:
             logger.error(f"[ElevenLabs] Error: {e}")
@@ -135,7 +129,6 @@ class OutboundWebSocketHandler:
             while True:
                 # Check if ElevenLabs connection is closed
                 if self.elevenlabs_closed:
-                    logger.info("[Twilio] Stopping message handling - ElevenLabs connection closed")
                     break
                 
                 message = await self.websocket.receive_text()
@@ -146,7 +139,6 @@ class OutboundWebSocketHandler:
                 if event == "start":
                     self.stream_sid = data["start"]["streamSid"]
                     self.call_sid = data["start"]["callSid"]
-                    logger.info(f"[Twilio] Stream started - CallSid: {self.call_sid}, StreamSid: {self.stream_sid}")
                 
                 elif event == "media":
                     # Only forward audio if ElevenLabs is still connected
@@ -158,10 +150,8 @@ class OutboundWebSocketHandler:
                                 "user_audio_chunk": audio_payload
                             }
                             await self.elevenlabs_ws.send(json.dumps(audio_message))
-                            logger.debug(f"[Twilio->ElevenLabs] Sent audio chunk")
                         except websockets.exceptions.ConnectionClosed:
                             # ElevenLabs closed, mark it and stop forwarding
-                            logger.info("[ElevenLabs] Connection closed while sending audio")
                             self.elevenlabs_closed = True
                             break
                         except Exception as e:
@@ -172,7 +162,6 @@ class OutboundWebSocketHandler:
                                 break
                 
                 elif event == "stop":
-                    logger.info(f"[Twilio] Stream {self.stream_sid} ended")
                     if self.elevenlabs_ws and not self.elevenlabs_closed:
                         try:
                             await self.elevenlabs_ws.close()
@@ -182,7 +171,7 @@ class OutboundWebSocketHandler:
                     break
         
         except WebSocketDisconnect:
-            logger.info("[Twilio] Client disconnected")
+            pass
         except Exception as e:
             logger.error(f"[Twilio] Error: {e}")
     

@@ -21,13 +21,11 @@ class DashboardConnectionManager:
         await websocket.accept()
         async with self._lock:
             self._connections.add(websocket)
-        logger.info("[Dashboard] WebSocket connected (%d clients)", len(self._connections))
 
     async def disconnect(self, websocket: WebSocket):
         """Remove a WebSocket connection."""
         async with self._lock:
             self._connections.discard(websocket)
-        logger.info("[Dashboard] WebSocket disconnected (%d clients)", len(self._connections))
 
     async def broadcast(self, event: str, payload: dict):
         """Broadcast an event to all connected clients."""
@@ -41,8 +39,7 @@ class DashboardConnectionManager:
         async def _send(ws: WebSocket):
             try:
                 await ws.send_text(message)
-            except Exception as exc:  # pragma: no cover - network issues
-                logger.debug("[Dashboard] Broadcast error: %s", exc)
+            except Exception:  # pragma: no cover - network issues
                 await self.disconnect(ws)
 
         await asyncio.gather(*(_send(ws) for ws in connections), return_exceptions=True)
