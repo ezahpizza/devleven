@@ -39,6 +39,30 @@ export interface OutboundCallResponse {
   phoneNumber: string;
 }
 
+export interface CallRecipient {
+  number: string;
+  client_name: string;
+}
+
+export interface BulkOutboundCallRequest {
+  recipients: CallRecipient[];
+}
+
+export interface CallResult {
+  success: boolean;
+  call_sid: string | null;
+  client_name: string;
+  phone_number: string;
+  error?: string;
+}
+
+export interface BulkOutboundCallResponse {
+  total_requested: number;
+  successful: number;
+  failed: number;
+  results: CallResult[];
+}
+
 export interface WebSocketMessage {
   event: "call_in_progress" | "call_completed";
   data: CallInProgressData | CallRecord;

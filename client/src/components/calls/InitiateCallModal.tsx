@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { Phone, X } from "lucide-react";
+import { Phone, Users, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { callsApi } from "@/services/callsApi";
-import { isValidPhoneNumber, isValidClientName, sanitizePhoneNumber } from "@/utils/validators";
-import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSingleCall, useBulkCalls, useCsvUpload } from "@/hooks/useCallForms";
+import { SingleCallForm } from "./SingleCallForm";
+import { BulkCallForm } from "./BulkCallForm";
+import { CsvUploadForm } from "./CsvUploadForm";
 
 interface InitiateCallModalProps {
   isOpen: boolean;
@@ -15,148 +14,95 @@ interface InitiateCallModalProps {
 }
 
 export const InitiateCallModal = ({ isOpen, onClose, onSuccess }: InitiateCallModalProps) => {
-  const [clientName, setClientName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{ clientName?: string; phoneNumber?: string }>({});
+  const [activeTab, setActiveTab] = useState<"single" | "bulk" | "csv">("single");
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Reset errors
-    setErrors({});
-    
-    // Validate
-    const newErrors: { clientName?: string; phoneNumber?: string } = {};
-    
-    if (!isValidClientName(clientName)) {
-      newErrors.clientName = "Client name must be between 2 and 255 characters";
-    }
-    
-    const sanitizedPhone = sanitizePhoneNumber(phoneNumber);
-    if (!isValidPhoneNumber(sanitizedPhone)) {
-      newErrors.phoneNumber = "Please enter a valid phone number in E.164 format (e.g., +14155552671)";
-    }
-    
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-    
-    // Submit
-    setIsSubmitting(true);
-    try {
-      const response = await callsApi.initiateCall({
-        client_name: clientName.trim(),
-        number: sanitizedPhone,
-      });
-      
-      toast.success(`Call initiated to ${response.clientName}`, {
-        description: `Call SID: ${response.callSid}`,
-      });
-      
-      // Reset form
-      setClientName("");
-      setPhoneNumber("");
-      
-      onSuccess?.();
-      onClose();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || "Failed to initiate call";
-      toast.error("Error", {
-        description: errorMessage,
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+  // Handlers for success and close
+  const handleSuccess = () => {
+    onSuccess?.();
+    onClose();
   };
 
+  // Initialize hooks
+  const singleCall = useSingleCall(handleSuccess);
+  const bulkCalls = useBulkCalls(handleSuccess);
+  const csvUpload = useCsvUpload(handleSuccess);
+
   const handleClose = () => {
-    if (!isSubmitting) {
-      setClientName("");
-      setPhoneNumber("");
-      setErrors({});
+    if (!singleCall.isSubmitting && !bulkCalls.isSubmitting && !csvUpload.isSubmitting) {
+      singleCall.reset();
+      bulkCalls.reset();
+      csvUpload.reset();
+      setActiveTab("single");
       onClose();
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <Phone className="h-5 w-5 text-primary" />
-              Initiate New Call
+              Initiate Outbound Call
             </DialogTitle>
           </div>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-          <div className="space-y-2">
-            <Label htmlFor="clientName">Client Name</Label>
-            <Input
-              id="clientName"
-              type="text"
-              placeholder="Enter client name..."
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              disabled={isSubmitting}
-              className={errors.clientName ? "border-destructive" : ""}
-            />
-            {errors.clientName && (
-              <p className="text-xs text-destructive">{errors.clientName}</p>
-            )}
-          </div>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "single" | "bulk" | "csv")} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="single" className="gap-2">
+              <Phone className="h-4 w-4" />
+              Single Call
+            </TabsTrigger>
+            <TabsTrigger value="bulk" className="gap-2">
+              <Users className="h-4 w-4" />
+              Bulk Calls
+            </TabsTrigger>
+            <TabsTrigger value="csv" className="gap-2">
+              <Upload className="h-4 w-4" />
+              CSV Upload
+            </TabsTrigger>
+          </TabsList>
 
-          <div className="space-y-2">
-            <Label htmlFor="phoneNumber">Phone Number</Label>
-            <Input
-              id="phoneNumber"
-              type="tel"
-              placeholder="+14155552671"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              disabled={isSubmitting}
-              className={errors.phoneNumber ? "border-destructive" : ""}
+          <TabsContent value="single" className="mt-4">
+            <SingleCallForm
+              clientName={singleCall.clientName}
+              setClientName={singleCall.setClientName}
+              phoneNumber={singleCall.phoneNumber}
+              setPhoneNumber={singleCall.setPhoneNumber}
+              isSubmitting={singleCall.isSubmitting}
+              errors={singleCall.errors}
+              onSubmit={singleCall.handleSubmit}
+              onCancel={handleClose}
             />
-            <p className="text-xs text-muted-foreground">
-              Format: E.164 (e.g., +14155552671)
-            </p>
-            {errors.phoneNumber && (
-              <p className="text-xs text-destructive">{errors.phoneNumber}</p>
-            )}
-          </div>
+          </TabsContent>
 
-          <div className="flex gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isSubmitting}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 gap-2"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="h-4 w-4 border-2 border-background border-t-transparent rounded-full animate-spin" />
-                  Calling...
-                </>
-              ) : (
-                <>
-                  <Phone className="h-4 w-4" />
-                  Initiate Call
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
+          <TabsContent value="bulk" className="mt-4">
+            <BulkCallForm
+              recipients={bulkCalls.recipients}
+              recipientErrors={bulkCalls.recipientErrors}
+              isSubmitting={bulkCalls.isSubmitting}
+              onSubmit={bulkCalls.handleSubmit}
+              onCancel={handleClose}
+              onAddRecipient={bulkCalls.addRecipient}
+              onRemoveRecipient={bulkCalls.removeRecipient}
+              onUpdateRecipient={bulkCalls.updateRecipient}
+            />
+          </TabsContent>
+
+          <TabsContent value="csv" className="mt-4">
+            <CsvUploadForm
+              csvFile={csvUpload.csvFile}
+              csvError={csvUpload.csvError}
+              isSubmitting={csvUpload.isSubmitting}
+              onFileSelect={csvUpload.handleFileSelect}
+              onSubmit={csvUpload.handleSubmit}
+              onCancel={handleClose}
+              onClearFile={csvUpload.clearFile}
+            />
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

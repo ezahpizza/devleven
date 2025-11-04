@@ -1,6 +1,7 @@
 """Service for Twilio API interactions."""
 import asyncio
 import logging
+from typing import List, Dict
 
 from twilio.rest import Client as TwilioClient
 
@@ -49,6 +50,82 @@ class TwilioService:
         except Exception as e:
             logger.error(f"[Twilio] Error initiating call: {e}")
             raise
+    
+    async def initiate_concurrent_calls(self, call_requests: List[Dict[str, str]]) -> List[Dict]:
+        """
+        Initiate multiple outbound calls concurrently.
+        
+        Args:
+            call_requests: List of dicts containing 'to_number' and 'twiml_url' for each call
+            
+        Returns:
+            List[dict]: List of call results, including successful calls and errors
+        """
+        async def initiate_single_call(request: Dict[str, str]) -> Dict:
+            """Wrapper to handle individual call initiation with error handling."""
+            try:
+                result = await self.initiate_call(
+                    to_number=request["to_number"],
+                    twiml_url=request["twiml_url"]
+                )
+                return {
+                    "success": True,
+                    "call_sid": result["call_sid"],
+                    "to_number": request["to_number"],
+                    "client_name": request.get("client_name", ""),
+                    "status": result["status"]
+                }
+            except Exception as e:
+                logger.error(f"[Twilio] Failed to initiate call to {request['to_number']}: {e}")
+                return {
+                    "success": False,
+                    "call_sid": None,
+                    "to_number": request["to_number"],
+                    "client_name": request.get("client_name", ""),
+                    "error": str(e)
+                }
+        
+        # Execute all calls concurrently
+        results = await asyncio.gather(
+            *[initiate_single_call(request) for request in call_requests],
+            return_exceptions=False
+        )
+        
+        return results
+    
+    async def initiate_batched_calls(self, call_requests: List[Dict[str, str]], batch_size: int = 5) -> List[Dict]:
+        """
+        Initiate multiple outbound calls in batches to avoid overwhelming the system.
+        
+        Args:
+            call_requests: List of dicts containing 'to_number' and 'twiml_url' for each call
+            batch_size: Number of concurrent calls per batch (default: 5)
+            
+        Returns:
+            List[dict]: List of call results for all batches
+        """
+        all_results = []
+        total_batches = (len(call_requests) + batch_size - 1) // batch_size
+        
+        logger.info(f"[Twilio] Processing {len(call_requests)} calls in {total_batches} batches of {batch_size}")
+        
+        for batch_num in range(total_batches):
+            start_idx = batch_num * batch_size
+            end_idx = min(start_idx + batch_size, len(call_requests))
+            batch = call_requests[start_idx:end_idx]
+            
+            logger.info(f"[Twilio] Processing batch {batch_num + 1}/{total_batches} ({len(batch)} calls)")
+            
+            # Process this batch concurrently
+            batch_results = await self.initiate_concurrent_calls(batch)
+            all_results.extend(batch_results)
+            
+            # Optional: Add a small delay between batches if needed
+            if batch_num < total_batches - 1:
+                await asyncio.sleep(0.5)  # 500ms delay between batches
+        
+        logger.info(f"[Twilio] Completed all {total_batches} batches")
+        return all_results
     
     async def end_call(self, call_sid: str) -> dict:
         """
