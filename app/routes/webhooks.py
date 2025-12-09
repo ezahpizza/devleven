@@ -15,6 +15,7 @@ from models import (
     InsightModel
 )
 from services.call_record_service import CallRecordService
+from services.gemini_service import GeminiService
 from utils.webhook_security import verify_hmac_signature
 
 logger = logging.getLogger(__name__)
@@ -124,6 +125,17 @@ def register_webhook_routes(app):
                     conversion_status=conversion_status,
                     timestamp=datetime.fromtimestamp(elevenlabs_payload.event_timestamp)
                 )
+                
+                # Generate AI summary and extract follow-up date using Gemini
+                try:
+                    summary, follow_up_date = await GeminiService.analyze_transcript(transcript_text.strip())
+                    payload.summary = summary
+                    payload.follow_up_date = follow_up_date
+                    logger.info(f"[Webhook] Gemini analysis complete - summary: {summary[:50]}..., follow_up: {follow_up_date}")
+                except Exception as gemini_error:
+                    logger.warning(f"[Webhook] Gemini analysis failed, continuing without summary: {gemini_error}")
+                    payload.summary = None
+                    payload.follow_up_date = None
                 
             except Exception as e:
                 logger.error(f"[Webhook] Failed to parse payload: {e}")

@@ -73,6 +73,8 @@ class CallCompletePayload(BaseModel):
     insights: InsightModel
     conversion_status: bool
     timestamp: datetime
+    summary: Optional[str] = Field(default=None, description="AI-generated call summary")
+    follow_up_date: Optional[str] = Field(default=None, description="Extracted follow-up date in YYYY-MM-DD format")
 
     model_config = ConfigDict(extra="ignore")
 

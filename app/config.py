@@ -14,6 +14,9 @@ class Config:
     ELEVENLABS_AGENT_ID = os.getenv("ELEVENLABS_AGENT_ID")
     ELEVENLABS_WEBHOOK_SECRET = os.getenv("ELEVENLABS_WEBHOOK_SECRET", "")
     
+    # Google Gemini Configuration
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    
     # Twilio Configuration
     TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
     TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")

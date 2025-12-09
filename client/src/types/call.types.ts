@@ -11,6 +11,8 @@ export interface CallRecord {
   insights: CallInsights;
   conversion_status: boolean;
   timestamp: string;
+  summary?: string | null;
+  follow_up_date?: string | null;
 }
 
 export interface PaginatedCallResponse {

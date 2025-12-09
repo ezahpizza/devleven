@@ -1,4 +1,4 @@
-import { X, Phone, Clock, MessageSquare, TrendingUp, CheckCircle, XCircle } from "lucide-react";
+import { Phone, Clock, MessageSquare, TrendingUp, Calendar, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -61,15 +61,13 @@ export const CallDetailModal = ({ call, isOpen, onClose }: CallDetailModalProps)
             </div>
             
             <div className="flex items-center gap-2">
-              {call.conversion_status ? (
-                <CheckCircle className="h-4 w-4 text-success" />
-              ) : (
-                <XCircle className="h-4 w-4 text-muted-foreground" />
-              )}
+              <Calendar className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-xs text-muted-foreground">Conversion</p>
+                <p className="text-xs text-muted-foreground">Follow-up</p>
                 <p className="text-sm font-semibold">
-                  {call.conversion_status ? "Yes" : "No"}
+                  {call.follow_up_date 
+                    ? new Date(call.follow_up_date).toLocaleDateString() 
+                    : "Not scheduled"}
                 </p>
               </div>
             </div>
@@ -82,6 +80,19 @@ export const CallDetailModal = ({ call, isOpen, onClose }: CallDetailModalProps)
               </div>
             </div>
           </div>
+
+          {/* AI Summary */}
+          {call.summary && (
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                AI Summary
+              </h3>
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                <p className="text-sm text-foreground leading-relaxed">{call.summary}</p>
+              </div>
+            </div>
+          )}
 
           {/* Topics */}
           {call.insights.topics.length > 0 && (

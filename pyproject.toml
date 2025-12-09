@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.118.0",
+    "google-genai>=1.54.0",
     "httpx>=0.28.1",
     "psycopg2>=2.9.10",
     "pymongo>=4.15.3",

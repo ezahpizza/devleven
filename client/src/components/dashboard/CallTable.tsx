@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, Copy } from "lucide-react";
+import { Eye, Copy, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -133,9 +133,16 @@ export const CallTable = ({ calls, isLoading, onViewDetails, highlightedCallId }
                 </div>
               )}
 
-              <Badge variant={call.conversion_status ? "success" : "outline"}>
-                {call.conversion_status ? "✓ Converted" : "✗ No conversion"}
-              </Badge>
+              {call.follow_up_date ? (
+                <Badge variant="secondary" className="gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {new Date(call.follow_up_date).toLocaleDateString()}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground">
+                  No follow-up
+                </Badge>
+              )}
 
               <Button
                 size="sm"
