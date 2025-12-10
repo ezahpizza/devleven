@@ -116,7 +116,7 @@ class OutboundWebSocketHandler:
             name = "there"
 
         return (
-            f"Hey {name}! Umm, this is Monica from Dev Fusion. How are you doing today? "
+            f"Hey {name}! Umm, this is Monica from Dev Fuzzion. How are you doing today? "
             "I am an Ai agent so, umm, please bear with me as you might experience a little delay in my responses."
         )
 

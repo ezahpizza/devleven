@@ -21,6 +21,12 @@ class Config:
     TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
     TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
     TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
+    TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER", os.getenv("TWILIO_PHONE_NUMBER"))
+    
+    # Gmail SMTP Email Configuration
+    GMAIL_USER = os.getenv("GMAIL_USER")
+    GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
+    GMAIL_FROM_EMAIL = os.getenv("GMAIL_FROM_EMAIL", os.getenv("GMAIL_USER", ""))
     
     # Data Stores
     MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
@@ -54,3 +60,16 @@ class Config:
         """Validate MongoDB configuration."""
         if not cls.MONGO_URI:
             raise ValueError("Missing MONGO_URI")
+    
+    @classmethod
+    def validate_email_config(cls):
+        """Validate Gmail SMTP email configuration."""
+        if not cls.GMAIL_USER or not cls.GMAIL_APP_PASSWORD:
+            raise ValueError("Missing GMAIL_USER or GMAIL_APP_PASSWORD")
+    
+    @classmethod
+    def validate_whatsapp_config(cls):
+        """Validate WhatsApp configuration."""
+        cls.validate_twilio_config()
+        if not cls.TWILIO_WHATSAPP_NUMBER:
+            raise ValueError("Missing TWILIO_WHATSAPP_NUMBER")

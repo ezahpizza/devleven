@@ -8,10 +8,22 @@ from pydantic import BaseModel, ConfigDict, Field
 class InsightModel(BaseModel):
     """Structured insights extracted from a call."""
 
-    sentiment: str = Field(..., max_length=64)
     topics: List[str] = Field(default_factory=list)
     duration_sec: int = Field(..., ge=0)
 
+    model_config = ConfigDict(extra="ignore")
+
+
+class NotificationPreferences(BaseModel):
+    """User notification preferences extracted from transcript."""
+    
+    notify_email: bool = Field(default=False, description="Whether user wants email notification")
+    notify_whatsapp: bool = Field(default=False, description="Whether user wants WhatsApp notification")
+    email_address: Optional[str] = Field(default=None, description="Email address for notification")
+    whatsapp_number: Optional[str] = Field(default=None, description="WhatsApp number for notification")
+    email_sent: bool = Field(default=False, description="Whether email was successfully sent")
+    whatsapp_sent: bool = Field(default=False, description="Whether WhatsApp message was successfully sent")
+    
     model_config = ConfigDict(extra="ignore")
 
 
@@ -75,6 +87,8 @@ class CallCompletePayload(BaseModel):
     timestamp: datetime
     summary: Optional[str] = Field(default=None, description="AI-generated call summary")
     follow_up_date: Optional[str] = Field(default=None, description="Extracted follow-up date in YYYY-MM-DD format")
+    notification_preferences: Optional[NotificationPreferences] = Field(default=None, description="User notification preferences")
+    phone_number: Optional[str] = Field(default=None, description="Phone number used for the call")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -83,7 +97,7 @@ class CallRecordResponse(CallCompletePayload):
     """Response schema for call records."""
 
     model_config = ConfigDict(
-        json_encoders={datetime: lambda value: value.isoformat()},
+        json_encoders={datetime: lambda value: value.strftime('%Y-%m-%dT%H:%M:%SZ') if value.tzinfo else value.isoformat()},
         populate_by_name=True,
     )
 

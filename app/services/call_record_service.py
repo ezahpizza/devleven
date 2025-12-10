@@ -26,7 +26,12 @@ def _serialize_call_record(document: Dict) -> Dict:
     serialized.pop("_id", None)
     timestamp = serialized.get("timestamp")
     if isinstance(timestamp, datetime):
-        serialized["timestamp"] = timestamp.astimezone(timezone.utc)
+        # Ensure timestamp is UTC and format with Z suffix for proper frontend parsing
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        else:
+            timestamp = timestamp.astimezone(timezone.utc)
+        serialized["timestamp"] = timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
     return serialized
 
 

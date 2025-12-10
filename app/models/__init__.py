@@ -7,6 +7,7 @@ from .call_record_models import (
     CallSummaryResponse,
     ElevenLabsWebhookPayload,
     InsightModel,
+    NotificationPreferences,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "CallSummaryResponse",
     "ElevenLabsWebhookPayload",
     "InsightModel",
+    "NotificationPreferences",
 ]

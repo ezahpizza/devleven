@@ -1,7 +1,15 @@
 export interface CallInsights {
-  sentiment: "positive" | "neutral" | "negative";
   topics: string[];
   duration_sec: number;
+}
+
+export interface NotificationPreferences {
+  notify_email: boolean;
+  notify_whatsapp: boolean;
+  email_address: string | null;
+  whatsapp_number: string | null;
+  email_sent: boolean;
+  whatsapp_sent: boolean;
 }
 
 export interface CallRecord {
@@ -11,8 +19,10 @@ export interface CallRecord {
   insights: CallInsights;
   conversion_status: boolean;
   timestamp: string;
-  summary?: string | null;
-  follow_up_date?: string | null;
+  summary: string | null;
+  follow_up_date: string | null;
+  notification_preferences: NotificationPreferences | null;
+  phone_number: string | null;
 }
 
 export interface PaginatedCallResponse {

@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Eye, Copy, Calendar } from "lucide-react";
+import { Eye, Copy, Calendar, Mail, MessageCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDuration, formatRelativeTime, truncateCallId, getInitials } from "@/utils/formatters";
+import { formatDuration, formatRelativeTime, truncateCallId, getInitials, formatDate } from "@/utils/formatters";
 import { toast } from "sonner";
 import type { CallRecord } from "@/types/call.types";
 import { cn } from "@/lib/utils";
@@ -14,23 +14,6 @@ interface CallTableProps {
   onViewDetails: (call: CallRecord) => void;
   highlightedCallId?: string | null;
 }
-
-const getSentimentEmoji = (sentiment: string) => {
-  switch (sentiment) {
-    case "positive":
-      return "😊";
-    case "neutral":
-      return "😐";
-    case "negative":
-      return "😢";
-    default:
-      return "❓";
-  }
-};
-
-const getSentimentVariant = (sentiment: string): "positive" | "neutral" | "negative" => {
-  return sentiment as "positive" | "neutral" | "negative";
-};
 
 export const CallTable = ({ calls, isLoading, onViewDetails, highlightedCallId }: CallTableProps) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -110,10 +93,6 @@ export const CallTable = ({ calls, isLoading, onViewDetails, highlightedCallId }
 
             {/* Metrics */}
             <div className="flex flex-wrap items-center gap-2 md:gap-4">
-              <Badge variant={getSentimentVariant(call.insights.sentiment)}>
-                {getSentimentEmoji(call.insights.sentiment)} {call.insights.sentiment}
-              </Badge>
-              
               <div className="text-sm text-muted-foreground">
                 {formatDuration(call.insights.duration_sec)}
               </div>
@@ -136,12 +115,36 @@ export const CallTable = ({ calls, isLoading, onViewDetails, highlightedCallId }
               {call.follow_up_date ? (
                 <Badge variant="secondary" className="gap-1">
                   <Calendar className="h-3 w-3" />
-                  {new Date(call.follow_up_date).toLocaleDateString()}
+                  {formatDate(call.follow_up_date)}
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-muted-foreground">
                   No follow-up
                 </Badge>
+              )}
+
+              {/* Notification Indicators */}
+              {call.notification_preferences && (
+                <div className="flex items-center gap-1">
+                  {call.notification_preferences.notify_email && (
+                    <Badge 
+                      variant={call.notification_preferences.email_sent ? "positive" : "outline"} 
+                      className="gap-1 px-1.5"
+                      title={call.notification_preferences.email_sent ? "Email sent" : "Email pending"}
+                    >
+                      <Mail className="h-3 w-3" />
+                    </Badge>
+                  )}
+                  {call.notification_preferences.notify_whatsapp && (
+                    <Badge 
+                      variant={call.notification_preferences.whatsapp_sent ? "positive" : "outline"} 
+                      className="gap-1 px-1.5"
+                      title={call.notification_preferences.whatsapp_sent ? "WhatsApp sent" : "WhatsApp pending"}
+                    >
+                      <MessageCircle className="h-3 w-3" />
+                    </Badge>
+                  )}
+                </div>
               )}
 
               <Button

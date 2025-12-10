@@ -14,6 +14,18 @@ export const formatRelativeTime = (timestamp: string): string => {
   }
 };
 
+export const formatDate = (dateString: string): string => {
+  try {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  } catch {
+    return "Invalid date";
+  }
+};
+
 export const formatPhoneNumber = (phone: string): string => {
   // Format E.164 to readable format
   // +14155552671 -> +1 (415) 555-2671

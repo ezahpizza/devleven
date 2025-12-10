@@ -1,4 +1,4 @@
-# DevFusion ElevenLabs-Twilio Voice Agent
+# DevFuzzion ElevenLabs-Twilio Voice Agent
 
 A FastAPI-based integration for connecting Twilio phone calls to ElevenLabs Conversational AI agents with real-time dashboard monitoring and automatic call record management.
 
@@ -153,7 +153,7 @@ eleventwilio/
 
 1. Go to ElevenLabs Console → Webhooks
 2. Create a new webhook with:
-   - **Name**: DevFusion Call Complete
+   - **Name**: DevFuzzion Call Complete
    - **URL**: `https://your-ngrok-url.ngrok.io/webhook/call_complete`
    - **Auth Method**: HMAC
    - **Events**: Select `post_call_transcription`
@@ -376,11 +376,11 @@ This is the current implementation using:
 
 ## 📄 License
 
-Proprietary - DevFusion Agency
+Proprietary - DevFuzzion Agency
 
 ## 👥 Support
 
-For issues or questions, contact DevFusion technical team.
+For issues or questions, contact DevFuzzion technical team.
 
 ---
 

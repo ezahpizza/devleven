@@ -69,7 +69,7 @@ async def root():
     return JSONResponse(content={
         "message": "Server is running",
         "version": "2.0.0",
-        "service": "DevFusion ElevenLabs-Twilio Integration"
+        "service": "DevFuzzion ElevenLabs-Twilio Integration"
     })
 
 
