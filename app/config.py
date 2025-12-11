@@ -36,12 +36,21 @@ class Config:
     PORT = int(os.getenv("PORT", "8000"))
     NGROK_URL = os.getenv("NGROK_URL", "")
 
+    # Brochure/Media Configuration
+    BROCHURE_FILE_PATH = os.getenv("BROCHURE_FILE_PATH", "docs/FileSend.pdf")
+    
     # CORS Configuration (origins only)
     _cors_origins = os.getenv("CORS_ALLOW_ORIGINS", "")
     if _cors_origins.strip():
         CORS_ALLOW_ORIGINS = [origin.strip() for origin in _cors_origins.split(",") if origin.strip()]
     else:
         CORS_ALLOW_ORIGINS = ["*"]
+    
+    @classmethod
+    def get_brochure_url(cls) -> str:
+        """Get the public URL for the brochure file."""
+        base_url = cls.NGROK_URL or f"http://localhost:{cls.PORT}"
+        return f"{base_url.rstrip('/')}/static/brochure.pdf"
     
     @classmethod
     def validate_elevenlabs_config(cls):

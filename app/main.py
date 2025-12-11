@@ -3,11 +3,13 @@ FastAPI implementation of Twilio-ElevenLabs voice calling assistant.
 
 """
 import logging
+import os
 import uvicorn
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 
 from config import Config
 from db import init_mongo, close_mongo
@@ -71,6 +73,27 @@ async def root():
         "version": "2.0.0",
         "service": "DevFuzzion ElevenLabs-Twilio Integration"
     })
+
+
+@app.get("/static/brochure.pdf")
+async def get_brochure():
+    """Serve the brochure PDF file for WhatsApp media messages."""
+    # Resolve the brochure path relative to the app directory
+    app_dir = Path(__file__).parent
+    brochure_path = app_dir.parent / Config.BROCHURE_FILE_PATH
+    
+    if not brochure_path.exists():
+        logger.error(f"[Static] Brochure file not found at: {brochure_path}")
+        return JSONResponse(
+            status_code=404,
+            content={"error": "Brochure file not found"}
+        )
+    
+    return FileResponse(
+        path=str(brochure_path),
+        media_type="application/pdf",
+        filename="DevFuzzion_Brochure.pdf"
+    )
 
 
 @app.get("/debug/config")

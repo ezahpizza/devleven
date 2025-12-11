@@ -31,10 +31,11 @@ class WhatsAppService:
         client_name: str,
         summary: str,
         follow_up_date: Optional[str] = None,
-        call_id: Optional[str] = None
+        call_id: Optional[str] = None,
+        include_brochure: bool = True
     ) -> dict:
         """
-        Send a call summary via WhatsApp with interactive buttons.
+        Send a call summary via WhatsApp with optional brochure attachment.
         
         Args:
             to_number: Recipient phone number in E.164 format (e.g., +1234567890).
@@ -42,6 +43,7 @@ class WhatsAppService:
             summary: AI-generated call summary.
             follow_up_date: Follow-up date in YYYY-MM-DD format (optional).
             call_id: Call ID for callback reference (optional).
+            include_brochure: Whether to include the brochure PDF (default: True).
             
         Returns:
             dict: Response containing message SID and status.
@@ -66,15 +68,28 @@ Hello {client_name}! Thank you for your recent call. Here's a summary of our con
 📝 *Summary:*
 {summary}{follow_up_text}
 
+📎 *Attached:* Our brochure with more information about our services.
+
 ---
 _This is an automated message from DevFuzzion Voice Assistant._"""
+
+            # Build message parameters
+            message_params = {
+                "from_": whatsapp_from,
+                "to": whatsapp_to,
+                "body": message_body
+            }
+            
+            # Add brochure media URL if enabled
+            if include_brochure:
+                brochure_url = Config.get_brochure_url()
+                message_params["media_url"] = [brochure_url]
+                logger.info(f"[WhatsApp] Including brochure media: {brochure_url}")
 
             # Send the message using Twilio's WhatsApp API
             message = await asyncio.to_thread(
                 client.messages.create,
-                from_=whatsapp_from,
-                to=whatsapp_to,
-                body=message_body
+                **message_params
             )
             
             logger.info(f"[WhatsApp] Message sent successfully to {to_number}, sid: {message.sid}")
@@ -145,14 +160,16 @@ Reference: {call_id}"""
     async def send_simple_message(
         cls,
         to_number: str,
-        message_body: str
+        message_body: str,
+        media_url: Optional[str] = None
     ) -> dict:
         """
-        Send a simple WhatsApp message.
+        Send a simple WhatsApp message with optional media attachment.
         
         Args:
             to_number: Recipient phone number in E.164 format.
             message_body: Message content.
+            media_url: Optional URL to media file (image, PDF, audio).
             
         Returns:
             dict: Response containing message SID and status.
@@ -163,11 +180,21 @@ Reference: {call_id}"""
             whatsapp_to = f"whatsapp:{to_number}" if not to_number.startswith("whatsapp:") else to_number
             whatsapp_from = f"whatsapp:{Config.TWILIO_WHATSAPP_NUMBER}"
             
+            # Build message parameters
+            message_params = {
+                "from_": whatsapp_from,
+                "to": whatsapp_to,
+                "body": message_body
+            }
+            
+            # Add media URL if provided
+            if media_url:
+                message_params["media_url"] = [media_url]
+                logger.info(f"[WhatsApp] Including media: {media_url}")
+            
             message = await asyncio.to_thread(
                 client.messages.create,
-                from_=whatsapp_from,
-                to=whatsapp_to,
-                body=message_body
+                **message_params
             )
             
             logger.info(f"[WhatsApp] Simple message sent to {to_number}, sid: {message.sid}")

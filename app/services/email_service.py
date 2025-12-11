@@ -3,6 +3,9 @@ import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
+from pathlib import Path
 from typing import Optional
 
 from config import Config
@@ -22,7 +25,8 @@ class EmailService:
         to_email: str,
         client_name: str,
         summary: str,
-        follow_up_date: Optional[str] = None
+        follow_up_date: Optional[str] = None,
+        attach_brochure: bool = True
     ) -> dict:
         """
         Send a call summary email to the user via Gmail SMTP.
@@ -32,6 +36,7 @@ class EmailService:
             client_name: Name of the client.
             summary: AI-generated call summary.
             follow_up_date: Follow-up date in YYYY-MM-DD format (optional).
+            attach_brochure: Whether to attach the brochure PDF (default: True).
             
         Returns:
             dict: Response containing success status and details.
@@ -81,6 +86,11 @@ class EmailService:
                     
                     {follow_up_section}
                     
+                    <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #ffc107;">
+                        <h3 style="color: #856404; margin-top: 0;">📎 Attached: Our Brochure</h3>
+                        <p style="color: #856404; margin-bottom: 0;">We've attached our brochure with more information about our services. Feel free to review it at your convenience.</p>
+                    </div>
+                    
                     <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
                     
                     <p style="color: #888; font-size: 12px; margin-bottom: 0;">
@@ -103,21 +113,36 @@ CALL SUMMARY:
 
 {"SCHEDULED FOLLOW-UP: " + follow_up_date if follow_up_date else ""}
 
+ATTACHED: Our Brochure
+We've attached our brochure with more information about our services.
+
 This is an automated message from DevFuzzion Voice Assistant.
 If you have any questions, please don't hesitate to call us back.
             """.strip()
             
-            # Create message container
-            msg = MIMEMultipart("alternative")
+            # Create message container - use 'mixed' for attachments
+            msg = MIMEMultipart("mixed")
             msg["Subject"] = f"Your Call Summary - {client_name}"
             msg["From"] = from_email
             msg["To"] = to_email
             
+            # Create alternative part for text/html
+            msg_alternative = MIMEMultipart("alternative")
+            
             # Attach plain text and HTML versions
             part1 = MIMEText(plain_text, "plain")
             part2 = MIMEText(html_content, "html")
-            msg.attach(part1)
-            msg.attach(part2)
+            msg_alternative.attach(part1)
+            msg_alternative.attach(part2)
+            
+            # Add the alternative part to the main message
+            msg.attach(msg_alternative)
+            
+            # Attach the brochure PDF if enabled
+            if attach_brochure:
+                brochure_attached = cls._attach_brochure(msg)
+                if not brochure_attached:
+                    logger.warning("[EmailService] Brochure attachment failed, sending email without it")
             
             # Send via Gmail SMTP
             with smtplib.SMTP(cls.SMTP_SERVER, cls.SMTP_PORT) as server:
@@ -140,3 +165,46 @@ If you have any questions, please don't hesitate to call us back.
                 "error": str(e),
                 "to": to_email
             }
+    
+    @classmethod
+    def _attach_brochure(cls, msg: MIMEMultipart) -> bool:
+        """
+        Attach the brochure PDF to the email message.
+        
+        Args:
+            msg: The email message to attach the brochure to.
+            
+        Returns:
+            bool: True if attachment was successful, False otherwise.
+        """
+        try:
+            # Resolve the brochure path relative to the services directory
+            services_dir = Path(__file__).parent
+            app_dir = services_dir.parent
+            brochure_path = app_dir.parent / Config.BROCHURE_FILE_PATH
+            
+            if not brochure_path.exists():
+                logger.warning(f"[EmailService] Brochure file not found at: {brochure_path}")
+                return False
+            
+            # Read and attach the PDF
+            with open(brochure_path, "rb") as attachment:
+                part = MIMEBase("application", "pdf")
+                part.set_payload(attachment.read())
+            
+            # Encode to base64
+            encoders.encode_base64(part)
+            
+            # Add header with filename
+            part.add_header(
+                "Content-Disposition",
+                f"attachment; filename=DevFuzzion_Brochure.pdf"
+            )
+            
+            msg.attach(part)
+            logger.info(f"[EmailService] Brochure attached successfully from: {brochure_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"[EmailService] Failed to attach brochure: {e}")
+            return False
