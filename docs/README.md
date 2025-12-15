@@ -1,60 +1,80 @@
 # DevFuzzion ElevenLabs-Twilio Voice Agent
 
-A FastAPI-based integration for connecting Twilio phone calls to ElevenLabs Conversational AI agents with real-time dashboard monitoring and automatic call record management.
+A FastAPI-based integration for connecting Twilio phone calls to ElevenLabs Conversational AI agents with real-time dashboard monitoring, automatic call record management, and RAG-powered knowledge base support.
 
-## 🚀 Features
+## Features
 
-- **Outbound Calls**: Initiate calls with personalized greetings using ElevenLabs conversational AI
-- **Real-time Dashboard**: WebSocket-powered dashboard with live call monitoring
+- **Outbound Calls**: Initiate single or bulk calls with personalized greetings using ElevenLabs conversational AI
+- **Bulk Call Support**: CSV upload and batch processing for bulk outbound campaigns
+- **Real-time Dashboard**: WebSocket-powered React dashboard with live call monitoring
 - **Call Analytics**: Comprehensive call records with transcripts, sentiment analysis, and conversion tracking
+- **Knowledge Base / RAG**: Upload documents to ElevenLabs knowledge base with automatic RAG indexing and agent attachment
 - **Secure Webhooks**: HMAC signature verification for ElevenLabs webhooks
+- **Post-Call Notifications**: Email and WhatsApp notifications after call completion
 - **MongoDB Database**: Persistent storage for call records and analytics
 - **Modular Architecture**: Clean separation of concerns for maintainability
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 eleventwilio/
 ├── app/
 │   ├── config.py                      # Configuration management
 │   ├── main.py                        # Application entry point
-│   ├── setup_db.py                    # Database initialization script
+│   ├── Dockerfile                     # Container configuration
 │   ├── models/                        # Data models
 │   │   ├── call_models.py             # Request models for API
 │   │   └── call_record_models.py      # Call record and webhook models
 │   ├── services/                      # Business logic
-│   │   ├── elevenlabs_service.py      # ElevenLabs API interactions
+│   │   ├── elevenlabs_service.py      # ElevenLabs API (calls, knowledge base, RAG)
 │   │   ├── twilio_service.py          # Twilio API interactions
-│   │   └── call_record_service.py     # Call record CRUD operations
+│   │   ├── call_record_service.py     # Call record CRUD operations
+│   │   ├── email_service.py           # Email notifications (Resend)
+│   │   ├── whatsapp_service.py        # WhatsApp notifications (Twilio)
+│   │   └── gemini_service.py          # Google Gemini AI integration
 │   ├── db/                            # Database layer
 │   │   ├── __init__.py                # DB lifecycle management
 │   │   └── mongo.py                   # MongoDB connection & collections
 │   ├── routes/                        # API routes
-│   │   ├── dashboard.py               # Dashboard API & WebSocket endpoints
+│   │   ├── dashboard.py               # Dashboard, calls, and knowledge base APIs
+│   │   ├── outbound_calls.py          # TwiML generation endpoints
 │   │   └── webhooks.py                # ElevenLabs webhook handlers
 │   ├── handlers/                      # WebSocket handlers
 │   │   ├── dashboard_ws.py            # Dashboard WebSocket manager
 │   │   └── websocket_handler.py       # Twilio-ElevenLabs media stream handler
 │   └── utils/                         # Utilities
+│       ├── csv_processor.py           # CSV parsing for bulk calls
 │       └── webhook_security.py        # HMAC verification
+├── client/                            # React frontend (Vite + TypeScript)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── calls/                 # Call initiation components
+│   │   │   ├── dashboard/             # Dashboard UI components
+│   │   │   ├── knowledge-base/        # Knowledge base upload modal
+│   │   │   └── ui/                    # shadcn/ui components
+│   │   ├── hooks/                     # React hooks (WebSocket, forms)
+│   │   ├── pages/                     # Page components
+│   │   ├── services/                  # API client services
+│   │   └── types/                     # TypeScript type definitions
+│   └── package.json                   # Frontend dependencies
 ├── docs/
 │   ├── README.md                      # This file
-│   ├── QUICKSTART.md                  # Quick setup guide
 │   └── AGENT_SYSTEM_PROMPT.md         # ElevenLabs agent configuration
-└── pyproject.toml                     # Project dependencies
+└── pyproject.toml                     # Python dependencies
 ```
 
-## 🛠️ Setup
+## Setup
 
 ### Prerequisites
 
 - Python 3.13+
+- Node.js 18+ and pnpm (for frontend)
 - MongoDB (local or Atlas)
 - Twilio account with phone number
 - ElevenLabs account with conversational AI agent
 - ngrok or similar tunneling service
 
-### Installation
+### Backend Installation
 
 1. **Clone and navigate to the project:**
    ```bash
@@ -89,36 +109,46 @@ eleventwilio/
    PORT=8000
    NGROK_URL=https://your-domain.ngrok.io
    ENV=dev
+   
+   # Optional: Email notifications (Resend)
+   RESEND_API_KEY=your_resend_api_key
    ```
 
-4. **Set up MongoDB:**
-   
-   The database and collections will be created automatically on first run.
-   
-   Alternatively, run the setup script:
+4. **Start the backend server:**
    ```bash
    cd app
-   python setup_db.py
-   ```
-
-5. **Start the server:**
-   ```bash
-   cd app
-   python main.py
-   # or
    uvicorn main:app --reload --port 8000
    ```
 
-6. **Expose with ngrok:**
+5. **Expose with ngrok:**
    ```bash
    ngrok http 8000
    ```
    
    Update `NGROK_URL` in `.env` with the URL provided by ngrok.
 
-## 📞 Making Outbound Calls
+### Frontend Installation
 
-### API Endpoint
+1. **Navigate to client directory:**
+   ```bash
+   cd client
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   pnpm install
+   ```
+
+3. **Start development server:**
+   ```bash
+   pnpm dev
+   ```
+
+   The dashboard will be available at `http://localhost:5173`
+
+## Making Outbound Calls
+
+### Single Call
 
 **POST** `/api/initiate_call`
 
@@ -141,6 +171,26 @@ eleventwilio/
 }
 ```
 
+### Bulk Calls (JSON)
+
+**POST** `/api/outbound-calls/bulk`
+
+**Request Body:**
+```json
+{
+  "recipients": [
+    { "client_name": "John Smith", "number": "+1234567890" },
+    { "client_name": "Jane Doe", "number": "+0987654321" }
+  ]
+}
+```
+
+### Bulk Calls (CSV Upload)
+
+**POST** `/api/outbound-calls/bulk-csv`
+
+Upload a CSV file with columns: `name` (or `client_name`) and `phone` (or `number`).
+
 ### How It Works
 
 1. Client name and phone number are passed to `/api/initiate_call`
@@ -149,7 +199,54 @@ eleventwilio/
 4. ElevenLabs agent receives client context and personalizes the conversation
 5. Real-time updates are broadcast to the dashboard via WebSocket
 
-## 🪝 Setting Up ElevenLabs Webhook
+## Knowledge Base / RAG
+
+Upload documents to enhance your ElevenLabs agent with custom knowledge using RAG (Retrieval-Augmented Generation).
+
+### Supported File Types
+
+- PDF (.pdf)
+- Text (.txt)
+- Word Documents (.doc, .docx)
+- Markdown (.md)
+- HTML (.html, .htm)
+
+### Upload Document
+
+**POST** `/api/knowledge-base/upload`
+
+Upload a file (multipart/form-data). The document will be:
+1. Uploaded to ElevenLabs knowledge base
+2. Automatically indexed for RAG
+3. Attached to your configured agent
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Document uploaded, indexing started, and attached to agent",
+  "document_id": "abc123",
+  "document_name": "product-info.pdf",
+  "indexing_status": "in_progress",
+  "progress_percentage": 0,
+  "attached_to_agent": true,
+  "agent_id": "your-agent-id"
+}
+```
+
+### Check Indexing Status
+
+**GET** `/api/knowledge-base/status/{document_id}`
+
+Poll this endpoint to track RAG indexing progress.
+
+### List Documents
+
+- **GET** `/api/knowledge-base/documents` - List all account documents
+- **GET** `/api/knowledge-base/agent-documents` - List documents attached to agent
+- **GET** `/api/knowledge-base/document/{document_id}` - Get specific document details
+
+## Setting Up ElevenLabs Webhook
 
 1. Go to ElevenLabs Console → Webhooks
 2. Create a new webhook with:
@@ -165,7 +262,7 @@ eleventwilio/
 
 4. Associate the webhook with your conversational AI agent
 
-## 💾 Call Records & Analytics
+## Call Records and Analytics
 
 Call records are automatically saved when a conversation ends:
 
@@ -188,9 +285,22 @@ Call records are automatically saved when a conversation ends:
 
 ### Dashboard API Endpoints
 
+**Call Management:**
 - **GET** `/api/calls?page=1&page_size=20` - Paginated call records
 - **GET** `/api/call/{call_id}` - Single call record details
 - **GET** `/api/calls/summary` - Summary statistics (total calls, conversions, conversion rate)
+- **POST** `/api/initiate_call` - Initiate single call
+- **POST** `/api/outbound-calls/bulk` - Initiate bulk calls (JSON)
+- **POST** `/api/outbound-calls/bulk-csv` - Initiate bulk calls (CSV upload)
+
+**Knowledge Base:**
+- **POST** `/api/knowledge-base/upload` - Upload document for RAG
+- **GET** `/api/knowledge-base/status/{document_id}` - Check indexing status
+- **GET** `/api/knowledge-base/documents` - List all documents
+- **GET** `/api/knowledge-base/agent-documents` - List agent documents
+- **GET** `/api/knowledge-base/document/{document_id}` - Get document details
+
+**WebSocket:**
 - **WebSocket** `/ws/dashboard` - Real-time updates for dashboard
 
 ### WebSocket Events
@@ -218,17 +328,29 @@ The dashboard WebSocket broadcasts these events:
     "timestamp": "2025-10-30T12:34:56Z"
   }
 }
+
+// Knowledge base document uploaded
+{
+  "type": "knowledge_base_upload",
+  "payload": {
+    "document_id": "abc123",
+    "document_name": "product-info.pdf",
+    "status": "in_progress",
+    "progress": 0,
+    "attached_to_agent": true
+  }
+}
 ```
 
-## 🔒 Security
+## Security
 
 - **HMAC Signature Verification**: All webhooks from ElevenLabs are verified using HMAC-SHA256
 - **Environment Variables**: Sensitive credentials stored securely in `.env`
 - **MongoDB**: Secure connection with authentication support
 
-## 🧪 Testing
+## Testing
 
-### Test Outbound Call
+### Test Single Call
 
 ```bash
 curl -X POST https://your-ngrok-url.ngrok.io/api/initiate_call \
@@ -237,6 +359,26 @@ curl -X POST https://your-ngrok-url.ngrok.io/api/initiate_call \
     "number": "+1234567890",
     "client_name": "John Smith"
   }'
+```
+
+### Test Bulk Calls
+
+```bash
+curl -X POST https://your-ngrok-url.ngrok.io/api/outbound-calls/bulk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipients": [
+      {"client_name": "John Smith", "number": "+1234567890"},
+      {"client_name": "Jane Doe", "number": "+0987654321"}
+    ]
+  }'
+```
+
+### Test Knowledge Base Upload
+
+```bash
+curl -X POST https://your-ngrok-url.ngrok.io/api/knowledge-base/upload \
+  -F "file=@/path/to/document.pdf"
 ```
 
 ### Get Call Records
@@ -258,7 +400,7 @@ curl https://your-ngrok-url.ngrok.io/api/calls/summary
 curl https://your-ngrok-url.ngrok.io/
 ```
 
-## 📊 Monitoring
+## Monitoring
 
 Check logs for:
 - Call initiation and status
@@ -266,6 +408,7 @@ Check logs for:
 - Call record creation
 - Webhook signature verification
 - ElevenLabs API interactions
+- Knowledge base uploads and RAG indexing
 
 Logs are formatted with timestamps and module names:
 ```
@@ -274,7 +417,7 @@ Logs are formatted with timestamps and module names:
 [2025-10-30 17:02:15] INFO - services.call_record_service - [MongoDB] Call record saved: conv_abc123
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Database Connection Issues
 - Verify `MONGO_URI` is correct
@@ -301,18 +444,25 @@ Logs are formatted with timestamps and module names:
 - Check HMAC signature verification logs
 - Ensure `post_call_transcription` event is selected
 
+### Knowledge Base Issues
+- Verify file type is supported (PDF, TXT, DOC, DOCX, MD, HTML)
+- Check file size is under 50MB
+- Ensure ELEVENLABS_AGENT_ID is set correctly for agent attachment
+- Check ElevenLabs console to verify document appears in knowledge base
+- Verify document shows the correct dependent agent
+
 ### Client Name Shows as [CALLER_NAME]
 - This was a known issue - client name needs to be passed via conversation initiation metadata
 - Ensure TwiML endpoint properly passes client_name in WebSocket URL
 - See AGENT_SYSTEM_PROMPT.md for proper configuration
 
-## 📝 API Documentation
+## API Documentation
 
 Once running, access interactive API docs at:
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 
-## 🏗️ Architecture
+## Architecture
 
 ### Call Flow
 
@@ -360,29 +510,20 @@ Dashboard → POST /api/initiate_call → Twilio API → Phone Call
                                               Dashboard WebSocket Update
 ```
 
-## 🔄 Migration Notes
+## Additional Documentation
 
-This is the current implementation using:
-- **MongoDB** instead of PostgreSQL
-- **Call Records** instead of Lead models
-- **Dashboard WebSocket** for real-time updates
-- **ElevenLabs post_call_transcription** webhook format
-- **Conversation initiation metadata** for client context
-
-## 📚 Additional Documentation
-
-- **QUICKSTART.md** - Step-by-step setup guide
 - **AGENT_SYSTEM_PROMPT.md** - ElevenLabs agent configuration and personality
+- **POST_CALL_NOTIFICATIONS.md** - Email and WhatsApp notification setup
 
-## 📄 License
+## License
 
 Proprietary - DevFuzzion Agency
 
-## 👥 Support
+## Support
 
 For issues or questions, contact DevFuzzion technical team.
 
 ---
 
-**Version**: 2.0.0  
-**Last Updated**: October 30, 2025
+**Version**: 3.0.0  
+**Last Updated**: December 15, 2025

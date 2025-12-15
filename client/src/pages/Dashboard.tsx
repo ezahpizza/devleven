@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Phone, RefreshCw } from "lucide-react";
+import { Phone, RefreshCw, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WebSocketIndicator } from "@/components/dashboard/WebSocketIndicator";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
@@ -7,6 +7,7 @@ import { CallTable } from "@/components/dashboard/CallTable";
 import { CallDetailModal } from "@/components/dashboard/CallDetailModal";
 import { Pagination } from "@/components/dashboard/Pagination";
 import { InitiateCallModal } from "@/components/calls/InitiateCallModal";
+import { KnowledgeBaseUploadModal } from "@/components/knowledge-base/KnowledgeBaseUploadModal";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { callsApi } from "@/services/callsApi";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ const Dashboard = () => {
   const [summary, setSummary] = useState<CallSummary | null>(null);
   const [selectedCall, setSelectedCall] = useState<CallRecord | null>(null);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [isKnowledgeBaseModalOpen, setIsKnowledgeBaseModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(DEFAULT_PAGE);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -147,6 +149,15 @@ const Dashboard = () => {
                 <span className="hidden sm:inline">Refresh</span>
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsKnowledgeBaseModalOpen(true)}
+                className="gap-2"
+              >
+                <BookOpen className="h-4 w-4" />
+                <span className="hidden sm:inline">Knowledge Base</span>
+              </Button>
+              <Button
                 size="sm"
                 onClick={() => setIsCallModalOpen(true)}
                 className="gap-2"
@@ -208,6 +219,14 @@ const Dashboard = () => {
         onSuccess={() => {
           fetchCalls(currentPage, pageSize);
           fetchSummary();
+        }}
+      />
+
+      <KnowledgeBaseUploadModal
+        isOpen={isKnowledgeBaseModalOpen}
+        onClose={() => setIsKnowledgeBaseModalOpen(false)}
+        onSuccess={() => {
+          toast.success("Knowledge base updated successfully!");
         }}
       />
     </div>

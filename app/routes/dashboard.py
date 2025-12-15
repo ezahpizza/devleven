@@ -1,7 +1,8 @@
 """Routes for dashboard APIs and WebSocket broadcasting."""
 import logging
+import os
 import re
-from typing import List
+from typing import List, Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, UploadFile, File
@@ -18,6 +19,7 @@ from models import (
 from models.call_models import BulkOutboundCallRequest, BulkOutboundCallResponse, CallResult, CallRecipient
 from services.call_record_service import CallRecordService
 from services.twilio_service import TwilioService
+from services.elevenlabs_service import ElevenLabsService, ALLOWED_FILE_EXTENSIONS, MAX_FILE_SIZE_MB
 from utils.csv_processor import CSVProcessor
 
 logger = logging.getLogger(__name__)
@@ -352,6 +354,177 @@ def register_dashboard_routes(app):
         except Exception as exc:
             logger.error("[Dashboard] Error processing CSV bulk calls: %s", exc)
             raise HTTPException(status_code=500, detail=f"Failed to process CSV: {str(exc)}")
+
+    # ==================== Knowledge Base / RAG Routes ====================
+    
+    @router.post("/api/knowledge-base/upload")
+    async def upload_knowledge_base_document(
+        file: UploadFile = File(..., description="Document file to upload (PDF, TXT, DOC, DOCX, MD)")
+    ):
+        """
+        Upload a document to the ElevenLabs knowledge base, trigger RAG indexing,
+        and attach it to the configured agent.
+        
+        Returns document ID, indexing status, and agent attachment status.
+        Use the status endpoint to poll for indexing completion.
+        """
+        # Validate file type
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Filename is required")
+        
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        if file_ext not in ALLOWED_FILE_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type not allowed. Allowed types: {', '.join(ALLOWED_FILE_EXTENSIONS)}"
+            )
+        
+        try:
+            # Read file content
+            content = await file.read()
+            
+            # Validate file size
+            file_size_mb = len(content) / (1024 * 1024)
+            if file_size_mb > MAX_FILE_SIZE_MB:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File too large. Maximum size is {MAX_FILE_SIZE_MB}MB"
+                )
+            
+            if len(content) == 0:
+                raise HTTPException(status_code=400, detail="File is empty")
+            
+            # Upload document, trigger indexing, and attach to agent
+            result = await ElevenLabsService.upload_and_index_document(
+                file_content=content,
+                filename=file.filename,
+                wait_for_completion=False,  # Don't wait, let client poll
+                attach_to_agent=True  # Attach to the configured agent
+            )
+            
+            # Broadcast to dashboard
+            await dashboard_manager.broadcast("knowledge_base_upload", {
+                "document_id": result.get("document_id"),
+                "document_name": result.get("document_name"),
+                "status": result.get("indexing_status"),
+                "progress": result.get("progress_percentage", 0),
+                "attached_to_agent": result.get("attached_to_agent", False)
+            })
+            
+            return JSONResponse(content={
+                "success": True,
+                "message": "Document uploaded, indexing started, and attached to agent",
+                "document_id": result.get("document_id"),
+                "document_name": result.get("document_name"),
+                "indexing_status": result.get("indexing_status"),
+                "progress_percentage": result.get("progress_percentage", 0),
+                "attached_to_agent": result.get("attached_to_agent", False),
+                "agent_id": result.get("agent_id"),
+                "agent_attachment_error": result.get("agent_attachment_error")
+            })
+            
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.error(f"[Knowledge Base] Error uploading document: {exc}")
+            raise HTTPException(status_code=500, detail=f"Failed to upload document: {str(exc)}")
+    
+    @router.get("/api/knowledge-base/status/{document_id}")
+    async def get_knowledge_base_indexing_status(document_id: str):
+        """
+        Get the RAG indexing status for a specific document.
+        
+        Poll this endpoint to track indexing progress.
+        """
+        try:
+            status_data = await ElevenLabsService.get_rag_index_status(document_id)
+            
+            return JSONResponse(content={
+                "document_id": document_id,
+                "status": status_data.get("status"),
+                "progress_percentage": status_data.get("progress_percentage", 0),
+                "model": status_data.get("model")
+            })
+            
+        except Exception as exc:
+            logger.error(f"[Knowledge Base] Error getting status for {document_id}: {exc}")
+            raise HTTPException(status_code=500, detail=f"Failed to get indexing status: {str(exc)}")
+    
+    @router.get("/api/knowledge-base/documents")
+    async def list_knowledge_base_documents(
+        page_size: int = Query(50, ge=1, le=100),
+        search: Optional[str] = Query(None, description="Search query for document names")
+    ):
+        """
+        List all documents in the account's knowledge base.
+        """
+        try:
+            result = await ElevenLabsService.list_knowledge_base_documents(
+                page_size=page_size,
+                search=search
+            )
+            
+            # Transform documents for frontend
+            documents = []
+            for doc in result.get("documents", []):
+                documents.append({
+                    "id": doc.get("id"),
+                    "name": doc.get("name"),
+                    "type": doc.get("type"),
+                    "created_at": doc.get("metadata", {}).get("created_at_unix_secs"),
+                    "size_bytes": doc.get("metadata", {}).get("size_bytes"),
+                    "supported_usages": doc.get("supported_usages", [])
+                })
+            
+            return JSONResponse(content={
+                "documents": documents,
+                "has_more": result.get("has_more", False)
+            })
+            
+        except Exception as exc:
+            logger.error(f"[Knowledge Base] Error listing documents: {exc}")
+            raise HTTPException(status_code=500, detail=f"Failed to list documents: {str(exc)}")
+    
+    @router.get("/api/knowledge-base/agent-documents")
+    async def get_agent_knowledge_base_documents():
+        """
+        List documents attached to the configured agent's knowledge base.
+        
+        This returns only documents that are actively being used by the agent for RAG.
+        """
+        try:
+            documents = await ElevenLabsService.get_agent_knowledge_base()
+            
+            return JSONResponse(content={
+                "agent_id": Config.ELEVENLABS_AGENT_ID,
+                "documents": documents,
+                "count": len(documents)
+            })
+            
+        except Exception as exc:
+            logger.error(f"[Knowledge Base] Error getting agent documents: {exc}")
+            raise HTTPException(status_code=500, detail=f"Failed to get agent documents: {str(exc)}")
+    
+    @router.get("/api/knowledge-base/document/{document_id}")
+    async def get_knowledge_base_document(document_id: str):
+        """
+        Get details of a specific document in the knowledge base.
+        """
+        try:
+            doc = await ElevenLabsService.get_knowledge_base_document(document_id)
+            
+            return JSONResponse(content={
+                "id": doc.get("id"),
+                "name": doc.get("name"),
+                "type": doc.get("type"),
+                "created_at": doc.get("metadata", {}).get("created_at_unix_secs"),
+                "size_bytes": doc.get("metadata", {}).get("size_bytes"),
+                "supported_usages": doc.get("supported_usages", [])
+            })
+            
+        except Exception as exc:
+            logger.error(f"[Knowledge Base] Error getting document {document_id}: {exc}")
+            raise HTTPException(status_code=500, detail=f"Failed to get document: {str(exc)}")
 
     @router.websocket("/ws/dashboard")
     async def dashboard_websocket(websocket: WebSocket):
