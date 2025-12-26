@@ -78,6 +78,22 @@ export const BulkCallForm = ({
                 <p className="text-xs text-destructive">{recipientErrors[index].phoneNumber}</p>
               )}
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor={`email-${index}`}>Email Address</Label>
+              <Input
+                id={`email-${index}`}
+                type="email"
+                placeholder="email@example.com"
+                value={(recipient as any).email || ""}
+                onChange={(e) => onUpdateRecipient(index, "email" as any, e.target.value)}
+                disabled={isSubmitting}
+                className={recipientErrors[index]?.email ? "border-destructive" : ""}
+              />
+              {recipientErrors[index]?.email && (
+                <p className="text-xs text-destructive">{recipientErrors[index].email}</p>
+              )}
+            </div>
           </div>
         ))}
       </div>

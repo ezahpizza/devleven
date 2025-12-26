@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class OutboundWebSocketHandler:
     """Handles WebSocket communication for outbound calls."""
     
-    def __init__(self, websocket: WebSocket, client_name: str = "", phone_number: str = ""):
+    def __init__(self, websocket: WebSocket, client_name: str = "", phone_number: str = "", email: str = ""):
         """
         Initialize the handler.
         
@@ -31,6 +31,7 @@ class OutboundWebSocketHandler:
         self.elevenlabs_ws: Optional[websockets.WebSocketClientProtocol] = None
         self.client_name: str = client_name
         self.phone_number: str = phone_number
+        self.email: str = email
         self.elevenlabs_closed: bool = False  # Track if ElevenLabs connection is closed
     
     async def handle(self):
@@ -127,6 +128,8 @@ class OutboundWebSocketHandler:
             dynamic_vars["client_name"] = self.client_name
         if self.phone_number:
             dynamic_vars["phone_number"] = self.phone_number
+        if self.email:
+            dynamic_vars["email"] = self.email
         return dynamic_vars
 
     async def _handle_connection(self):
@@ -201,11 +204,38 @@ class OutboundWebSocketHandler:
                     if custom_params:
                         self.client_name = custom_params.get("client_name", "")
                         self.phone_number = custom_params.get("phone_number", "")
+                        self.email = custom_params.get("email", "")
                         logger.info(f"[Handler] Extracted from Stream params - Client: {self.client_name}, Phone: {self.phone_number}")
                         
                         # Now that we have all the info, re-initialize ElevenLabs with correct context
                         if self.elevenlabs_ws:
                             await self._initialize_conversation_context()
+                        # Persist the metadata provided at call initiation (frontend-provided defaults)
+                        try:
+                            if self.call_sid:
+                                await CallRecordService.store_call_metadata(
+                                    call_sid=self.call_sid,
+                                    client_name=self.client_name,
+                                    phone_number=self.phone_number,
+                                    email=self.email,
+                                )
+                                # If a conversation_id was already received from ElevenLabs,
+                                # link it to the call SID so webhooks can look up metadata.
+                                if self.conversation_id:
+                                    try:
+                                        await CallRecordService.link_conversation_to_call(
+                                            conversation_id=self.conversation_id,
+                                            call_sid=self.call_sid,
+                                        )
+                                        logger.info(
+                                            "[Handler] Linked existing conversation_id %s to call_sid %s",
+                                            self.conversation_id,
+                                            self.call_sid,
+                                        )
+                                    except Exception:
+                                        logger.exception("[Handler] Failed to link conversation to call_sid")
+                        except Exception:
+                            logger.exception("[Handler] Failed to store call metadata")
                 
                 elif event == "media":
                     # Only forward audio if ElevenLabs is still connected

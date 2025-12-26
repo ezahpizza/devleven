@@ -45,12 +45,15 @@ class CallRecordService:
     _conversation_to_call: Dict[str, str] = {}
 
     @staticmethod
-    async def store_call_metadata(call_sid: str, client_name: str, phone_number: str):
-        """Store client name and phone number for a call."""
-        CallRecordService._call_metadata[call_sid] = {
+    async def store_call_metadata(call_sid: str, client_name: str, phone_number: str, email: str = ""):
+        """Store client name, phone number and optional email for a call."""
+        meta: Dict[str, str] = {
             "client_name": client_name,
             "phone_number": phone_number
         }
+        if email:
+            meta["email"] = email
+        CallRecordService._call_metadata[call_sid] = meta
         logger.info(f"[CallRecord] Stored metadata for call_sid={call_sid}: {client_name}")
 
     @staticmethod

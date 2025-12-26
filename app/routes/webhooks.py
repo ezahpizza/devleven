@@ -2,6 +2,7 @@
 import json
 import logging
 from datetime import datetime, timezone
+import re
 
 from fastapi import APIRouter, HTTPException, Request, Header, Form
 from fastapi.responses import JSONResponse, Response
@@ -94,17 +95,38 @@ def register_webhook_routes(app):
                                 client_name = dynamic_vars.get('client_name', 'Unknown')
                                 logger.info(f"[Webhook] Fallback: Extracted client name from payload: {client_name}")
                 
+                # Try to extract phone/email from transcript (prefer transcript details)
+                extracted_phone = None
+                extracted_email = None
+                try:
+                    # simple email search
+                    email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", transcript_text)
+                    if email_match:
+                        extracted_email = email_match.group(0)
+                    # simple phone search (E.164-like or long digit sequences)
+                    phone_match = re.search(r"\+?\d[\d\-\s\(\)]{6,}\d", transcript_text)
+                    if phone_match:
+                        # normalize phone: remove spaces and punctuation
+                        phone_candidate = re.sub(r"[^0-9+]+", "", phone_match.group(0))
+                        extracted_phone = phone_candidate
+                except Exception:
+                    pass
+
+                # Use metadata values as defaults if transcript didn't contain them
+                phone_number = extracted_phone or metadata.get("phone_number", "")
+                email_address = extracted_email or metadata.get("email", "")
+
                 # Extract topics from summary if available
                 topics = []
                 if elevenlabs_payload.data.analysis and elevenlabs_payload.data.analysis.call_summary_title:
                     topics = [elevenlabs_payload.data.analysis.call_summary_title]
-                
+
                 # Determine conversion status (you may want to adjust this logic)
                 conversion_status = (
                     elevenlabs_payload.data.analysis.call_successful == "success"
                     if elevenlabs_payload.data.analysis else False
                 )
-                
+
                 # Create our internal payload format
                 payload = CallCompletePayload(
                     call_id=elevenlabs_payload.data.conversation_id,
@@ -117,10 +139,7 @@ def register_webhook_routes(app):
                     conversion_status=conversion_status,
                     timestamp=datetime.fromtimestamp(elevenlabs_payload.event_timestamp, tz=timezone.utc)
                 )
-                
-                # Get the phone number from metadata
-                phone_number = metadata.get("phone_number", "")
-                
+
                 # Generate AI summary, extract follow-up date and notification preferences using Gemini
                 try:
                     analysis_result = await GeminiService.analyze_transcript(
@@ -129,16 +148,17 @@ def register_webhook_routes(app):
                     )
                     payload.summary = analysis_result.summary
                     payload.follow_up_date = analysis_result.follow_up_date
+                    # ensure payload.phone_number reflects extracted/default value
                     payload.phone_number = phone_number
-                    
-                    # Set notification preferences
+
+                    # Set notification preferences from Gemini analysis if present
                     payload.notification_preferences = NotificationPreferences(
                         notify_email=analysis_result.notify_email,
                         notify_whatsapp=analysis_result.notify_whatsapp,
                         email_address=analysis_result.email_address,
                         whatsapp_number=analysis_result.whatsapp_number
                     )
-                    
+
                     logger.info(f"[Webhook] Gemini analysis complete - summary: {analysis_result.summary[:50]}..., "
                                f"follow_up: {analysis_result.follow_up_date}, "
                                f"notify_email: {analysis_result.notify_email}, "
@@ -148,7 +168,20 @@ def register_webhook_routes(app):
                     payload.summary = None
                     payload.follow_up_date = None
                     payload.notification_preferences = None
-                
+
+                # If Gemini didn't provide an email address, use the extracted/default email
+                if payload.notification_preferences is None:
+                    # create default notification preferences using provided/default contact
+                    payload.notification_preferences = NotificationPreferences(
+                        notify_email=False,
+                        notify_whatsapp=False,
+                        email_address=email_address,
+                        whatsapp_number=None
+                    )
+                else:
+                    # ensure an email exists on the notification prefs
+                    if not payload.notification_preferences.email_address and email_address:
+                        payload.notification_preferences.email_address = email_address
             except Exception as e:
                 logger.error(f"[Webhook] Failed to parse payload: {e}")
                 raise HTTPException(status_code=400, detail=f"Invalid payload structure: {e}")

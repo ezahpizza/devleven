@@ -32,13 +32,13 @@ export const callsApi = {
 
   // Initiate outbound call
   initiateCall: async (data: OutboundCallRequest): Promise<OutboundCallResponse> => {
-    const response = await api.post<OutboundCallResponse>("/api/initiate_call", data);
+    const response = await api.post<OutboundCallResponse>("/outbound-call", data);
     return response.data;
   },
 
   // Initiate bulk outbound calls
   initiateBulkCalls: async (data: BulkOutboundCallRequest): Promise<BulkOutboundCallResponse> => {
-    const response = await api.post<BulkOutboundCallResponse>("/api/outbound-calls/bulk", data);
+    const response = await api.post<BulkOutboundCallResponse>("/outbound-call/bulk", data);
     return response.data;
   },
 

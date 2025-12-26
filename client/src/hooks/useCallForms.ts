@@ -8,6 +8,7 @@ import type { CallFormErrors, RecipientError, ApiError } from "@/types/call-moda
 export const useSingleCall = (onSuccess?: () => void) => {
   const [clientName, setClientName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<CallFormErrors>({});
 
@@ -20,6 +21,10 @@ export const useSingleCall = (onSuccess?: () => void) => {
     
     if (!isValidClientName(clientName)) {
       newErrors.clientName = "Client name must be between 2 and 255 characters";
+    }
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Please enter a valid email address";
     }
     
     const sanitizedPhone = sanitizePhoneNumber(phoneNumber);
@@ -37,6 +42,7 @@ export const useSingleCall = (onSuccess?: () => void) => {
       const response = await callsApi.initiateCall({
         client_name: clientName.trim(),
         number: sanitizedPhone,
+        email: email?.trim() || undefined,
       });
       
       toast.success(`Call initiated to ${response.clientName}`, {
@@ -59,6 +65,7 @@ export const useSingleCall = (onSuccess?: () => void) => {
   const reset = () => {
     setClientName("");
     setPhoneNumber("");
+    setEmail("");
     setErrors({});
   };
 
@@ -67,6 +74,8 @@ export const useSingleCall = (onSuccess?: () => void) => {
     setClientName,
     phoneNumber,
     setPhoneNumber,
+    email,
+    setEmail,
     isSubmitting,
     errors,
     handleSubmit,
@@ -76,7 +85,7 @@ export const useSingleCall = (onSuccess?: () => void) => {
 
 export const useBulkCalls = (onSuccess?: () => void) => {
   const [recipients, setRecipients] = useState<CallRecipient[]>([
-    { client_name: "", number: "" }
+    { client_name: "", number: "", email: undefined }
   ]);
   const [recipientErrors, setRecipientErrors] = useState<RecipientError[]>([{}]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -105,8 +114,13 @@ export const useBulkCalls = (onSuccess?: () => void) => {
       } else {
         validRecipients.push({
           client_name: recipient.client_name.trim(),
-          number: sanitizedPhone
+          number: sanitizedPhone,
+          email: recipient.email?.trim() || undefined
         });
+      }
+      if (recipient.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient.email)) {
+        recipientError.email = "Please enter a valid email address";
+        hasErrors = true;
       }
       
       newErrors.push(recipientError);
@@ -138,7 +152,7 @@ export const useBulkCalls = (onSuccess?: () => void) => {
   };
 
   const addRecipient = () => {
-    setRecipients([...recipients, { client_name: "", number: "" }]);
+    setRecipients([...recipients, { client_name: "", number: "", email: undefined }]);
     setRecipientErrors([...recipientErrors, {}]);
   };
 

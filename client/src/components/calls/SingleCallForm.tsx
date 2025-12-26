@@ -8,10 +8,13 @@ interface SingleCallFormProps {
   setClientName: (value: string) => void;
   phoneNumber: string;
   setPhoneNumber: (value: string) => void;
+  email?: string;
+  setEmail?: (value: string) => void;
   isSubmitting: boolean;
   errors: {
     clientName?: string;
     phoneNumber?: string;
+    email?: string;
   };
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
@@ -22,6 +25,8 @@ export const SingleCallForm = ({
   setClientName,
   phoneNumber,
   setPhoneNumber,
+  email,
+  setEmail,
   isSubmitting,
   errors,
   onSubmit,
@@ -61,6 +66,22 @@ export const SingleCallForm = ({
         </p>
         {errors.phoneNumber && (
           <p className="text-xs text-destructive">{errors.phoneNumber}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="email">Email Address</Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder="email@example.com"
+          value={email || ""}
+          onChange={(e) => setEmail?.(e.target.value)}
+          disabled={isSubmitting}
+          className={errors.email ? "border-destructive" : ""}
+        />
+        {errors.email && (
+          <p className="text-xs text-destructive">{errors.email}</p>
         )}
       </div>
 

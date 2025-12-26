@@ -41,6 +41,7 @@ export interface CallSummary {
 export interface OutboundCallRequest {
   number: string;
   client_name: string;
+  email?: string | null;
 }
 
 export interface OutboundCallResponse {
@@ -54,6 +55,7 @@ export interface OutboundCallResponse {
 export interface CallRecipient {
   number: string;
   client_name: string;
+  email?: string | null;
 }
 
 export interface BulkOutboundCallRequest {

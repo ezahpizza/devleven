@@ -53,7 +53,8 @@ def register_outbound_routes(app):
             # Add client name as query parameter
             params = {
                 "client_name": request_data.client_name,
-                "phone_number": request_data.number
+                "phone_number": request_data.number,
+                "email": request_data.email or ""
             }
             twiml_url_with_params = f"{twiml_url}?{urlencode(params)}"
             
@@ -97,6 +98,7 @@ def register_outbound_routes(app):
         query_params = dict(request.query_params)
         client_name = query_params.get("client_name", "")
         phone_number = query_params.get("phone_number", "")
+        email = query_params.get("email", "")
         
         logger.info(f"[TwiML] Received query params: client_name={client_name}, phone_number={phone_number}")
         
@@ -115,6 +117,7 @@ def register_outbound_routes(app):
         <Stream url="{ws_stream_url}">
             <Parameter name="client_name" value="{client_name}" />
             <Parameter name="phone_number" value="{phone_number}" />
+            <Parameter name="email" value="{email}" />
         </Stream>
     </Connect>
 </Response>"""
@@ -132,5 +135,60 @@ def register_outbound_routes(app):
         """
         # Parameters will be extracted from Twilio's 'start' event
         # Pass empty strings initially, handler will extract them from the start event
-        handler = OutboundWebSocketHandler(websocket, "", "")
+        # Handler will extract the client_name / phone_number / email from Twilio start event
+        handler = OutboundWebSocketHandler(websocket, "", "", "")
         await handler.handle()
+
+    @app.post("/outbound-call/bulk")
+    async def initiate_bulk_calls(request_data: dict, request: Request):
+        """
+        Initiate multiple outbound calls in batches.
+        Expects JSON body: { recipients: [{ number, client_name, email? }, ...] }
+        """
+        recipients = request_data.get("recipients") or []
+        if not recipients:
+            return JSONResponse(status_code=400, content={"error": "No recipients provided"})
+
+        try:
+            base_url = Config.NGROK_URL or f"https://{request.headers.get('host', 'localhost')}"
+            twiml_url = f"{base_url}/outbound-call-twiml"
+
+            call_requests = []
+            for r in recipients:
+                params = {
+                    "client_name": r.get("client_name", ""),
+                    "phone_number": r.get("number", ""),
+                    "email": r.get("email", "") or ""
+                }
+                twiml_url_with_params = f"{twiml_url}?{urlencode(params)}"
+                call_requests.append({
+                    "to_number": r.get("number"),
+                    "twiml_url": twiml_url_with_params,
+                    "client_name": r.get("client_name", "")
+                })
+
+            results = await twilio_service.initiate_batched_calls(call_requests)
+
+            successful = sum(1 for r in results if r.get("success"))
+            failed = sum(1 for r in results if not r.get("success"))
+
+            response = {
+                "total_requested": len(recipients),
+                "successful": successful,
+                "failed": failed,
+                "results": [
+                    {
+                        "success": r.get("success", False),
+                        "call_sid": r.get("call_sid"),
+                        "client_name": r.get("client_name",""),
+                        "phone_number": r.get("to_number") or r.get("to_number"),
+                        "error": r.get("error")
+                    }
+                    for r in results
+                ]
+            }
+
+            return JSONResponse(content=response)
+        except Exception as e:
+            logger.error(f"[Outbound Bulk] Error initiating bulk calls: {e}")
+            return JSONResponse(status_code=500, content={"error": str(e)})

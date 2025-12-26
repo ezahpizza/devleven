@@ -7,12 +7,14 @@ class OutboundCallRequest(BaseModel):
     """Request model for initiating outbound calls."""
     number: str = Field(..., description="Phone number to call in E.164 format")
     client_name: str = Field(..., description="Name of the client to personalize the greeting")
+    email: str | None = Field(None, description="Optional email address for the contact")
 
 
 class CallRecipient(BaseModel):
     """Individual call recipient information."""
     number: str = Field(..., description="Phone number to call in E.164 format")
     client_name: str = Field(..., description="Name of the client to personalize the greeting")
+    email: str | None = Field(None, description="Optional email address for the contact")
 
 
 class BulkOutboundCallRequest(BaseModel):
